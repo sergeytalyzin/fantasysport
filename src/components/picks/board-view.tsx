@@ -24,6 +24,7 @@ function toPick(p: BoardProjection, direction: PickDirection): CouponPick {
     line: p.line,
     playerName: p.player.full_name,
     photoUrl: p.player.photo_url,
+    photoCredit: p.player,
     // Без известной команды показываем сам матч: «хозяева vs гости».
     teamAbbr: team?.abbr ?? p.match.home.abbr,
     teamColor: team?.color ?? null,

@@ -13,6 +13,7 @@ import { useBoard } from "@/features/projections/hooks";
 import { formatCountdown, formatKickoff } from "@/lib/format";
 import { pairColors } from "@/lib/team-color";
 import { LiveCenter } from "@/components/live/live-center";
+import { MatchStream } from "./match-stream";
 import { TeamBadge } from "./team-badge";
 
 /** Обратный отсчёт обновляется раз в минуту. */
@@ -55,6 +56,7 @@ export function MatchView({ matchId }: { matchId: string }) {
           <span className="rounded-md bg-white/10 px-2 py-0.5 text-foreground">{match.league.short_name}</span>
           <span>{formatKickoff(match.starts_at, now)}</span>
         </div>
+        <MatchStream url={match.stream_url} title={`${match.home.name} — ${match.away.name}`} />
         <LiveCenter match={match} />
       </div>
     );
@@ -101,6 +103,8 @@ export function MatchView({ matchId }: { matchId: string }) {
           <span className="rounded-xl bg-primary/15 px-3 py-1.5 font-bold text-primary">{formatCountdown(match.starts_at, now)}</span>
         </div>
       </section>
+
+      <MatchStream url={match.stream_url} title={`${match.home.name} — ${match.away.name}`} />
 
       {!linesLoading && lines.length === 0 ? (
         <EmptyState icon={<Clock className="size-10" />} title="Линий на этот матч нет">

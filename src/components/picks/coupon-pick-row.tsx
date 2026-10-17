@@ -24,7 +24,13 @@ export function CouponPickRow({
   return (
     <li className="animate-rise rounded-2xl border border-white/[0.06] bg-surface-2 p-2.5">
       <div className="flex items-center gap-3">
-        <PlayerPhoto name={pick.playerName} photoUrl={pick.photoUrl} teamColor={pick.teamColor} className="size-11 rounded-xl" />
+        <PlayerPhoto
+          name={pick.playerName}
+          photoUrl={pick.photoUrl}
+          credit={pick.photoCredit}
+          teamColor={pick.teamColor}
+          className="size-11 rounded-xl"
+        />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-bold">{pick.playerName}</p>
           <p className="truncate text-xs text-muted-foreground">

@@ -49,6 +49,8 @@ function ProjectionCardBase({ projection, selected, onPick, linkToMatch = false 
           <PlayerPhoto
             name={player.full_name}
             photoUrl={player.photo_url}
+            credit={player}
+            showCredit
             teamColor={team?.color ?? null}
             number={player.jersey_number}
             className="size-[4.5rem]"

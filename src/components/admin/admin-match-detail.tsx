@@ -1,6 +1,6 @@
 "use client";
 
-import { Ban, CheckCheck, Flag, Link2 } from "lucide-react";
+import { Ban, CheckCheck, Flag, Link2, Tv } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,11 @@ import {
   type AdminMatch,
   confirmMatchResults,
   setMatchStatus,
+  setMatchStream,
   useAdminMutation,
 } from "@/features/admin/hooks";
 import { formatDateTime } from "@/lib/format";
+import { parseStreamUrl, STREAM_PROVIDER_NAMES } from "@/lib/stream-embed";
 import { AdminProjections } from "./admin-projections";
 import { AdminStatsEditor } from "./admin-stats-editor";
 
@@ -36,6 +38,42 @@ function ResultLink({ match }: { match: AdminMatch }) {
           подтвердите результаты вручную.
         </p>
       ) : null}
+    </div>
+  );
+}
+
+function StreamField({ match }: { match: AdminMatch }) {
+  const [url, setUrl] = useState(match.stream_url ?? "");
+  const save = useAdminMutation(setMatchStream, "Трансляция сохранена", [...INVALIDATE, ["match", match.id]]);
+  const trimmed = url.trim();
+  const embed = trimmed ? parseStreamUrl(trimmed, window.location.hostname) : null;
+  const invalid = Boolean(trimmed) && !embed;
+
+  return (
+    <div className="space-y-2 rounded-2xl border border-white/[0.06] bg-surface-2 p-3">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <Tv className="size-4 text-primary" /> Трансляция
+      </p>
+      <div className="flex gap-2">
+        <Input
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://www.youtube.com/watch?v=…"
+          aria-label="Ссылка на трансляцию"
+          inputMode="url"
+          aria-invalid={invalid}
+        />
+        <Button disabled={invalid || save.isPending || trimmed === (match.stream_url ?? "")} onClick={() => save.mutate({ matchId: match.id, url: trimmed || null })}>
+          {trimmed ? "Сохранить" : "Убрать"}
+        </Button>
+      </div>
+      <p className={invalid ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+        {invalid
+          ? "Ссылка не распознана. Поддерживаются YouTube, Twitch, VK Видео и Rutube."
+          : embed
+            ? `Плеер: ${STREAM_PROVIDER_NAMES[embed.provider]}.`
+            : "Только официальные бесплатные трансляции правообладателя, разрешающие встраивание (YouTube, Twitch, VK Видео, Rutube)."}
+      </p>
     </div>
   );
 }
@@ -118,6 +156,7 @@ export function AdminMatchDetail({ match, onClose }: { match: AdminMatch | null;
                   <TabsTrigger value="lines">Линии</TabsTrigger>
                 </TabsList>
                 <TabsContent value="results" className="space-y-3 pt-3">
+                  <StreamField key={`stream-${match.id}`} match={match} />
                   <ResultLink match={match} />
                   <ResultsActions key={match.id} match={match} />
                 </TabsContent>

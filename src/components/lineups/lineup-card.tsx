@@ -1,4 +1,5 @@
 import { ArrowDown, ArrowUp, Check, Circle, Minus, X } from "lucide-react";
+import { PlayerPhoto } from "@/components/sports/player-photo";
 import { formatDateTime, formatKickoff, formatLine, formatMultiplier, formatRub } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Lineup, LineupSelection } from "@/types/domain";
@@ -34,6 +35,13 @@ export function LineupCard({ lineup }: { lineup: Lineup }) {
           return (
             <li key={s.id} className="flex items-center gap-3 px-4 py-2.5">
               <ResultIcon result={s.result} />
+              <PlayerPhoto
+                name={s.player_name}
+                photoUrl={s.player?.photo_url ?? null}
+                credit={s.player}
+                teamColor={null}
+                className="size-10 rounded-xl"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{s.player_name}</p>
                 <p className="truncate text-xs text-muted-foreground">

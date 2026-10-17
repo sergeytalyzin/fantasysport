@@ -1,6 +1,7 @@
 // Логика купона на клиенте — только для удобства интерфейса.
 // Окончательная проверка и расчёт выполняются в create_lineup (PostgreSQL).
 
+import type { PhotoCredit } from "@/lib/photo-credit";
 import type { PayoutRule, PickDirection, PlayType } from "@/types/domain";
 
 export interface CouponPick {
@@ -11,6 +12,8 @@ export interface CouponPick {
   line: number;
   playerName: string;
   photoUrl: string | null;
+  /** Источник и лицензия фото; в сохранённых ранее купонах может отсутствовать. */
+  photoCredit?: PhotoCredit | null;
   teamAbbr: string | null;
   teamColor: string | null;
   opponentAbbr: string | null;

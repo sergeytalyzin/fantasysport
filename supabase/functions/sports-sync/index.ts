@@ -3,6 +3,8 @@
 // POST /functions/v1/sports-sync
 //   {"action": "sync"}                       — линии + результаты (Cron, каждые 15 минут)
 //   {"action": "lines" | "results"}          — только линии / только результаты
+//   {"action": "logos"}                      — логотипы команд (Cron, каждые 10 минут)
+//   {"action": "photos"}                     — фото спортсменов (Cron, каждые 10 минут)
 //   {"action": "status"}                     — состояние провайдеров
 //
 // Доступ: заголовок x-cron-secret (Cron) или JWT администратора.
@@ -33,6 +35,8 @@ import {
   type SportsDataProvider,
   type SyncSink,
 } from "../_shared/sports-providers/index.ts";
+import { type PhotoCandidate, type PhotosSink, syncPlayerPhotos } from "../_shared/player-photos/player-photos.ts";
+import { type LogoCandidate, type LogosSink, syncTeamLogos } from "../_shared/team-logos/team-logos.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -356,6 +360,38 @@ async function ranRecently(
   return (count ?? 0) > 0;
 }
 
+function createLogosSink(db: SupabaseClient): LogosSink {
+  return {
+    async teamsNeedingLogos(limit) {
+      const { data, error } = await db.rpc("teams_needing_logos", { p_limit: limit });
+      if (error) throw new Error(`teams_needing_logos: ${error.message}`);
+      return data as LogoCandidate[];
+    },
+    async setTeamLogos(items) {
+      if (items.length === 0) return 0;
+      const { data, error } = await db.rpc("set_team_logos", { p_items: items });
+      if (error) throw new Error(`set_team_logos: ${error.message}`);
+      return data as number;
+    },
+  };
+}
+
+function createPhotosSink(db: SupabaseClient): PhotosSink {
+  return {
+    async playersNeedingPhotos(limit) {
+      const { data, error } = await db.rpc("players_needing_photos", { p_limit: limit });
+      if (error) throw new Error(`players_needing_photos: ${error.message}`);
+      return data as PhotoCandidate[];
+    },
+    async setPlayerPhotos(items) {
+      if (items.length === 0) return 0;
+      const { data, error } = await db.rpc("set_player_photos", { p_items: items });
+      if (error) throw new Error(`set_player_photos: ${error.message}`);
+      return data as number;
+    },
+  };
+}
+
 /** Выполняет задачу и пишет результат в sync_runs (видно в админке). */
 async function tracked<T extends Record<string, unknown>>(
   db: SupabaseClient,
@@ -394,6 +430,29 @@ Deno.serve(async (req) => {
   const action = body.action ?? "sync";
 
   try {
+    // Логотипы — из бесплатных источников, без бюджета OddsPapi.
+    if (action === "logos") {
+      const report = await tracked(db, "logos", "logos", () =>
+        syncTeamLogos(createLogosSink(db), {
+          limit: Number(Deno.env.get("LOGOS_BATCH") ?? 12),
+          sportsDbKey: Deno.env.get("THESPORTSDB_API_KEY") ?? "123",
+        }),
+      );
+      return json({ caller, action, report });
+    }
+    if (action === "photos") {
+      const report = await tracked(db, "photos", "photos", () =>
+        syncPlayerPhotos(createPhotosSink(db), {
+          limit: Number(Deno.env.get("PHOTOS_BATCH") ?? 10),
+          // Без ключа Sportmonks футбольный источник пропускается (не имитируется).
+          sportmonksKey: Deno.env.get("SPORTMONKS_API_KEY") ?? null,
+          // Контакт для User-Agent запросов к Wikimedia (сайт или адрес владельца).
+          contact: Deno.env.get("WIKIMEDIA_CONTACT") ?? null,
+        }),
+      );
+      return json({ caller, action, report });
+    }
+
     const providers = await createProviders(db);
     const sink = createSink(db);
 

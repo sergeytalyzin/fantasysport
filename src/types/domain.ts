@@ -85,6 +85,10 @@ export interface BoardProjection {
     position: string | null;
     jersey_number: number | null;
     photo_url: string | null;
+    photo_source: string | null;
+    photo_license: string | null;
+    photo_author: string | null;
+    photo_page_url: string | null;
     team: TeamRef | null;
   };
   match: {
@@ -154,6 +158,13 @@ export interface LineupSelection {
   result: SelectionResult;
   actual_value: number | null;
   result_reason: string | null;
+  player: {
+    photo_url: string | null;
+    photo_source: string | null;
+    photo_license: string | null;
+    photo_author: string | null;
+    photo_page_url: string | null;
+  } | null;
 }
 
 export interface Lineup {

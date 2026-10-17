@@ -12,7 +12,8 @@ const TEAM = "id, name, short_name, abbr, color, logo_url";
 const BOARD_SELECT = `
   id, line, status, line_updated_at,
   market:markets!inner(id, code, name, short_name),
-  player:players!inner(id, full_name, position, jersey_number, photo_url, team:teams(${TEAM})),
+  player:players!inner(id, full_name, position, jersey_number, photo_url, photo_source, photo_license, photo_author,
+    photo_page_url, team:teams(${TEAM})),
   match:matches!inner(
     id, starts_at, status, source,
     league:leagues!inner(code, short_name, sport_id),

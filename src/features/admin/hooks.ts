@@ -111,6 +111,7 @@ export interface AdminMatch {
   away_score: number | null;
   results_confirmed_at: string | null;
   settled_at: string | null;
+  stream_url: string | null;
   source: string;
   external_id: string;
   league: { code: string; short_name: string; sport_id: string };
@@ -136,7 +137,7 @@ export function useAdminMatches(filter: MatchFilter) {
       let q = db()
         .from("matches")
         .select(
-          `id, starts_at, status, home_score, away_score, results_confirmed_at, settled_at, source, external_id,
+          `id, starts_at, status, home_score, away_score, results_confirmed_at, settled_at, stream_url, source, external_id,
            league:leagues!inner(code, short_name, sport_id),
            home:teams!matches_home_team_id_fkey(id, name, abbr),
            away:teams!matches_away_team_id_fkey(id, name, abbr),
@@ -204,6 +205,9 @@ export const setMatchStatus = (v: { matchId: string; status: MatchStatus; home?:
 
 export const upsertPlayerStats = (v: { matchId: string; playerId: string; stats: Record<string, number>; didPlay: boolean }) =>
   rpc("admin_upsert_player_stats", { p_match_id: v.matchId, p_player_id: v.playerId, p_stats: v.stats, p_did_play: v.didPlay });
+
+export const setMatchStream = (v: { matchId: string; url: string | null }) =>
+  rpc("admin_set_match_stream", { p_match_id: v.matchId, p_url: v.url });
 
 export const confirmMatchResults = (matchId: string) => rpc<number>("admin_confirm_match_results", { p_match_id: matchId });
 

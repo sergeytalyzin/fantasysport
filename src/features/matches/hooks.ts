@@ -51,15 +51,16 @@ export function useMatches({ sport, league }: { sport: string | null; league: st
   });
 }
 
+export type MatchDetail = Omit<MatchListItem, "lines"> & { stream_url: string | null };
+
 export function useMatch(id: string) {
   return useQuery({
     queryKey: ["match", id],
     refetchInterval: 60_000,
     queryFn: async () =>
-      unwrap(await getSupabaseBrowserClient().from("matches").select(MATCH_SELECT).eq("id", id).maybeSingle()) as unknown as Omit<
-        MatchListItem,
-        "lines"
-      > | null,
+      unwrap(
+        await getSupabaseBrowserClient().from("matches").select(`${MATCH_SELECT}, stream_url`).eq("id", id).maybeSingle(),
+      ) as unknown as MatchDetail | null,
   });
 }
 

@@ -32,13 +32,14 @@ export function useMyLineups(tab: keyof typeof LINEUP_TABS) {
             `id, user_id, play_type, picks_count, stake, multiplier, potential_payout, status,
              applied_multiplier, payout, settled_at, settlement_note, created_at,
              selections:lineup_selections(id, projection_id, player_id, direction, line, player_name, team_abbr,
-               opponent_abbr, market_name, league_code, match_starts_at, result, actual_value, result_reason)`,
+               opponent_abbr, market_name, league_code, match_starts_at, result, actual_value, result_reason,
+               player:players(photo_url, photo_source, photo_license, photo_author, photo_page_url))`,
           )
           .eq("user_id", user!.id)
           .in("status", LINEUP_TABS[tab].statuses)
           .order("created_at", { ascending: false })
           .range(pageParam, pageParam + PAGE - 1),
-      ) as Lineup[];
+      ) as unknown as Lineup[];
       return rows.map((l) => ({
         ...l,
         multiplier: Number(l.multiplier),
