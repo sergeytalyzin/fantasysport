@@ -3,7 +3,6 @@
 import { ArrowDown, ArrowUp, Clock } from "lucide-react";
 import Link from "next/link";
 import { memo } from "react";
-import { DemoBadge } from "@/components/layout/demo-badge";
 import { PlayerPhoto } from "@/components/sports/player-photo";
 import { formatKickoff, formatKickoffShort, formatLine } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -54,7 +53,6 @@ function ProjectionCardBase({ projection, selected, onPick, linkToMatch = false 
             number={player.jersey_number}
             className="size-[4.5rem]"
           />
-          {match.source === "demo" ? <DemoBadge className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-background" /> : null}
         </div>
         <h3 className="mt-3 line-clamp-2 min-h-[2.5rem] font-sans text-[0.95rem] font-bold leading-tight tracking-normal">
           {player.full_name}

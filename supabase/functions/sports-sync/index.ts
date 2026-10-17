@@ -1,33 +1,37 @@
-// Edge Function: синхронизация спортивных данных и симуляция демо-матчей.
+// Edge Function: синхронизация реальных спортивных данных.
 //
 // POST /functions/v1/sports-sync
 //   {"action": "sync"}                       — линии + результаты (Cron, каждые 15 минут)
 //   {"action": "lines" | "results"}          — только линии / только результаты
-//   {"action": "simulate", "match_id": uuid} — досрочно завершить демо-матч
 //   {"action": "status"}                     — состояние провайдеров
 //
 // Доступ: заголовок x-cron-secret (Cron) или JWT администратора.
 // Ключи внешних API хранятся только в Supabase Secrets.
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
+import type { StatLine } from "../_shared/house-lines/engine.ts";
+import { HOUSE_SOURCE, type HouseSink, syncHouseLines } from "../_shared/house-lines/sync-house.ts";
 import {
   type ApiFootballLeague,
   ApiFootballResultsProvider,
   type AwaitingMatch,
-  DemoProvider,
   type ExternalResultsSink,
+  type LeagueCode,
   NhlResultsProvider,
+  OpenDotaResultsProvider,
+  type PropsCandidate,
   type ResultsProvider,
+  type ScheduleSink,
+  type SportId,
+  syncPropsForMatches,
+  syncSchedule,
+  TIER1_ESPORTS,
   syncExternalResults,
-  type MarketComponents,
   type OddsPapiLeagueConfig,
   OddsPapiProvider,
   type ProviderCache,
-  simulateMatch,
   type SportsDataProvider,
   type SyncSink,
-  syncLines,
-  syncResults,
 } from "../_shared/sports-providers/index.ts";
 
 const CORS = {
@@ -70,6 +74,11 @@ function createSink(db: SupabaseClient): SyncSink {
       if (error) throw new Error(`ingest_results: ${error.message}`);
       return data;
     },
+    async setTeamNamesEn(source, items) {
+      const { data, error } = await db.rpc("set_team_names_en", { p_source: source, p_items: items });
+      if (error) throw new Error(`set_team_names_en: ${error.message}`);
+      return data as number;
+    },
     async matchesAwaitingResults(source, limit) {
       const { data, error } = await db.rpc("matches_awaiting_results", { p_source: source, p_limit: limit });
       if (error) throw new Error(`matches_awaiting_results: ${error.message}`);
@@ -102,27 +111,27 @@ function createCache(db: SupabaseClient, provider: string): ProviderCache {
 }
 
 async function createProviders(db: SupabaseClient): Promise<SportsDataProvider[]> {
-  const enabled = (Deno.env.get("SPORTS_PROVIDERS") ?? "demo").split(",").map((s) => s.trim());
+  const enabled = (Deno.env.get("SPORTS_PROVIDERS") ?? "oddspapi").split(",").map((s) => s.trim());
   const providers: SportsDataProvider[] = [];
-
-  if (enabled.includes("demo")) {
-    const { data, error } = await db.from("markets").select("sport_id, code, components").eq("is_active", true);
-    if (error) throw new Error(`markets: ${error.message}`);
-    const marketComponents: MarketComponents = {};
-    for (const m of data as { sport_id: keyof MarketComponents; code: string; components: string[] }[]) {
-      (marketComponents[m.sport_id] ??= {})[m.code] = m.components;
-    }
-    providers.push(new DemoProvider({ marketComponents }));
-  }
 
   if (enabled.includes("oddspapi")) {
     const apiKey = Deno.env.get("ODDSPAPI_API_KEY");
     if (!apiKey) throw new Error("SPORTS_PROVIDERS содержит oddspapi, но ODDSPAPI_API_KEY не задан");
     const { data, error } = await db.from("leagues").select("code, sport_id, external_ids").eq("is_active", true);
     if (error) throw new Error(`leagues: ${error.message}`);
+    // Турнир (external_ids.oddspapi) или вид спорта целиком (external_ids.oddspapi_sport, киберспорт).
     const leagues: OddsPapiLeagueConfig[] = (data as { code: string; sport_id: string; external_ids: Record<string, string> }[])
-      .filter((l) => l.external_ids?.oddspapi)
-      .map((l) => ({ code: l.code, sportId: l.sport_id, tournamentId: String(l.external_ids.oddspapi) }) as OddsPapiLeagueConfig);
+      .filter((l) => l.external_ids?.oddspapi || l.external_ids?.oddspapi_sport)
+      .map(
+        (l) =>
+          ({
+            code: l.code,
+            sportId: l.sport_id,
+            tournamentId: l.external_ids.oddspapi ? String(l.external_ids.oddspapi) : undefined,
+            opSportId: l.external_ids.oddspapi_sport ? String(l.external_ids.oddspapi_sport) : undefined,
+            tournamentPattern: l.external_ids.oddspapi_tournaments || undefined,
+          }) as OddsPapiLeagueConfig,
+      );
     providers.push(
       new OddsPapiProvider({
         apiKey,
@@ -140,12 +149,13 @@ async function createProviders(db: SupabaseClient): Promise<SportsDataProvider[]
 
 /**
  * Провайдеры статистики для матчей, линии которых пришли от других источников.
- * RESULTS_PROVIDERS=nhl,apifootball (по умолчанию nhl — бесплатно, без ключа).
+ * RESULTS_PROVIDERS=nhl,apifootball,opendota (по умолчанию nhl,opendota — бесплатно, без ключа).
  */
 async function createResultsProviders(db: SupabaseClient): Promise<ResultsProvider[]> {
-  const enabled = (Deno.env.get("RESULTS_PROVIDERS") ?? "nhl").split(",").map((s) => s.trim()).filter(Boolean);
+  const enabled = (Deno.env.get("RESULTS_PROVIDERS") ?? "nhl,opendota").split(",").map((s) => s.trim()).filter(Boolean);
   const providers: ResultsProvider[] = [];
   if (enabled.includes("nhl")) providers.push(new NhlResultsProvider());
+  if (enabled.includes("opendota")) providers.push(new OpenDotaResultsProvider());
   if (enabled.includes("apifootball")) {
     const apiKey = Deno.env.get("APIFOOTBALL_API_KEY");
     if (!apiKey) throw new Error("RESULTS_PROVIDERS содержит apifootball, но APIFOOTBALL_API_KEY не задан");
@@ -161,8 +171,12 @@ async function createResultsProviders(db: SupabaseClient): Promise<ResultsProvid
 
 function createResultsSink(db: SupabaseClient): ExternalResultsSink {
   return {
-    async awaiting(leagueCodes, limit) {
-      const { data, error } = await db.rpc("matches_awaiting_external_results", { p_league_codes: leagueCodes, p_limit: limit });
+    async awaiting(leagueCodes, limit, sportIds) {
+      const { data, error } = await db.rpc("matches_awaiting_external_results", {
+        p_league_codes: leagueCodes,
+        p_limit: limit,
+        p_sport_ids: sportIds,
+      });
       if (error) throw new Error(`matches_awaiting_external_results: ${error.message}`);
       return data as AwaitingMatch[];
     },
@@ -179,16 +193,166 @@ function createResultsSink(db: SupabaseClient): ExternalResultsSink {
   };
 }
 
-async function ranRecently(db: SupabaseClient, provider: string): Promise<boolean> {
-  const hours = Number(Deno.env.get("ODDSPAPI_MIN_INTERVAL_HOURS") ?? 12);
+function createHouseSink(db: SupabaseClient): HouseSink {
+  const check = <T,>({ data, error }: { data: T | null; error: { message: string } | null }, what: string): T => {
+    if (error) throw new Error(`${what}: ${error.message}`);
+    return data as T;
+  };
+  return {
+    async knownFixtures(provider, ids) {
+      if (ids.length === 0) return new Set();
+      const rows = check(
+        await db.from("stat_history").select("fixture_external_id").eq("provider", provider).in("fixture_external_id", ids),
+        "stat_history",
+      ) as { fixture_external_id: string }[];
+      return new Set(rows.map((r) => r.fixture_external_id));
+    },
+    async saveHistory(rows) {
+      if (rows.length) check(await db.from("stat_history").upsert(rows, { ignoreDuplicates: true }), "stat_history");
+    },
+    async savePriors(rows) {
+      if (rows.length) check(await db.from("stat_priors").upsert(rows), "stat_priors");
+    },
+    async loadForms(provider, season, ids) {
+      const history = new Map<string, StatLine[]>();
+      const priors = new Map<string, { appearances: number; minutes: number; totals: Record<string, number> }>();
+      if (ids.length === 0) return { history, priors };
+      const h = check(
+        await db
+          .from("stat_history")
+          .select("player_external_id, minutes, stats")
+          .eq("provider", provider)
+          .in("player_external_id", ids)
+          .order("played_at", { ascending: false }),
+        "stat_history",
+      ) as { player_external_id: string; minutes: number; stats: Record<string, number> }[];
+      for (const r of h) history.set(r.player_external_id, [...(history.get(r.player_external_id) ?? []), { minutes: r.minutes, stats: r.stats }]);
+      const p = check(
+        await db
+          .from("stat_priors")
+          .select("player_external_id, appearances, minutes, totals")
+          .eq("provider", provider)
+          .eq("season", season)
+          .in("player_external_id", ids),
+        "stat_priors",
+      ) as { player_external_id: string; appearances: number; minutes: number; totals: Record<string, number> }[];
+      for (const r of p) priors.set(r.player_external_id, { appearances: r.appearances, minutes: r.minutes, totals: r.totals });
+      return { history, priors };
+    },
+    getProgress: (key) => createCache(db, "pickup").get(key),
+    setProgress: (key, value) => createCache(db, "pickup").set(key, value, 365 * 86_400),
+    async ingestSlate(source, payload) {
+      return check(await db.rpc("ingest_slate", { p_source: source, p_payload: payload }), "ingest_slate");
+    },
+  };
+}
+
+/** Виды спорта, для которых загружается полное расписание. */
+async function scheduleSports(db: SupabaseClient): Promise<{ id: SportId; opSportId: string }[]> {
+  const { data, error } = await db
+    .from("sports")
+    .select("id, oddspapi_sport_id")
+    .eq("schedule_enabled", true)
+    .not("oddspapi_sport_id", "is", null)
+    .order("sort_order");
+  if (error) throw new Error(`sports: ${error.message}`);
+  return (data as { id: SportId; oddspapi_sport_id: number }[]).map((s) => ({ id: s.id, opSportId: String(s.oddspapi_sport_id) }));
+}
+
+function createScheduleSink(db: SupabaseClient): ScheduleSink {
+  return {
+    async ingestSchedule(source, payload) {
+      const { data, error } = await db.rpc("ingest_schedule", { p_source: source, p_payload: payload });
+      if (error) throw new Error(`ingest_schedule: ${error.message}`);
+      return data;
+    },
+  };
+}
+
+/**
+ * Матчи, для которых запрашиваются линии на игроков: лиги с props_enabled и
+ * турниры первого эшелона в киберспорте; ближайшие 48 часов.
+ */
+async function propsCandidates(db: SupabaseClient): Promise<PropsCandidate[]> {
+  const now = new Date();
+  const base = () =>
+    db
+      .from("matches")
+      .select("external_id, starts_at, league:leagues!inner(code, sport_id, name, props_enabled)")
+      .eq("source", "oddspapi")
+      .eq("status", "SCHEDULED")
+      .gt("starts_at", now.toISOString())
+      .lt("starts_at", new Date(now.getTime() + 48 * 3600_000).toISOString())
+      .order("starts_at")
+      .limit(60);
+  const [props, esports] = await Promise.all([
+    base().eq("league.props_enabled", true),
+    base().in("league.sport_id", ["dota", "cs"]),
+  ]);
+  if (props.error) throw new Error(`matches: ${props.error.message}`);
+  if (esports.error) throw new Error(`matches: ${esports.error.message}`);
+  type Row = { external_id: string; starts_at: string; league: { code: string; sport_id: SportId; name: string } };
+  const tier1 = new RegExp(TIER1_ESPORTS, "i");
+  const rows = [...(props.data as unknown as Row[]), ...(esports.data as unknown as Row[]).filter((r) => tier1.test(r.league.name))];
+  const unique = new Map(rows.map((r) => [r.external_id, r]));
+  return [...unique.values()].map((r) => ({
+    externalId: r.external_id,
+    leagueCode: r.league.code,
+    sportId: r.league.sport_id,
+    startsAt: r.starts_at,
+  }));
+}
+
+/**
+ * Свои линии PICKUP (HOUSE_LINES=RPL): лиги без линий букмекеров на игроков.
+ * Данные — API-Football; по Cron не чаще раза в HOUSE_INTERVAL_HOURS часов.
+ */
+async function runHouseLines(db: SupabaseClient, caller: string, report: Record<string, unknown>) {
+  const codes = (Deno.env.get("HOUSE_LINES") ?? "").split(",").map((c) => c.trim()).filter(Boolean);
+  const apiKey = Deno.env.get("APIFOOTBALL_API_KEY");
+  if (codes.length === 0 || !apiKey) return;
+  // Пока первичная загрузка не завершена (complete=false), Cron продолжает её каждый запуск.
+  if (caller === "cron" && (await ranRecently(db, HOUSE_SOURCE, Number(Deno.env.get("HOUSE_INTERVAL_HOURS") ?? 6), "house", true))) {
+    report.house = { skipped: 1 };
+    return;
+  }
+  const { data } = await db.from("leagues").select("code, external_ids").in("code", codes);
+  for (const league of (data ?? []) as { code: string; external_ids: Record<string, string> }[]) {
+    const leagueId = league.external_ids?.apifootball;
+    if (!leagueId) continue;
+    const af = new ApiFootballResultsProvider({
+      apiKey,
+      leagues: [{ code: league.code as LeagueCode, leagueId }],
+      cache: createCache(db, "apifootball"),
+    });
+    report[`house:${league.code}`] = await tracked(db, HOUSE_SOURCE, "house", () =>
+      syncHouseLines(af, createHouseSink(db), {
+        leagueCode: league.code,
+        leagueId,
+        deadline: Date.now() + Number(Deno.env.get("HOUSE_TIME_BUDGET_SECONDS") ?? 90) * 1000,
+      }),
+    );
+  }
+}
+
+async function ranRecently(
+  db: SupabaseClient,
+  provider: string,
+  intervalHours?: number,
+  job = "lines",
+  onlyComplete = false,
+): Promise<boolean> {
+  const hours = intervalHours ?? Number(Deno.env.get("ODDSPAPI_MIN_INTERVAL_HOURS") ?? 12);
   const since = new Date(Date.now() - hours * 3600_000).toISOString();
-  const { count } = await db
+  let query = db
     .from("sync_runs")
     .select("id", { count: "exact", head: true })
     .eq("provider", provider)
-    .eq("job", "lines")
+    .eq("job", job)
     .eq("status", "SUCCESS")
     .gt("started_at", since);
+  if (onlyComplete) query = query.eq("details->>complete", "true");
+  const { count } = await query;
   return (count ?? 0) > 0;
 }
 
@@ -243,34 +407,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "simulate") {
-      if (!body.match_id) return json({ error: "match_id обязателен" }, 400);
-      const { data: match, error } = await db
-        .from("matches")
-        .select("source, external_id")
-        .eq("id", body.match_id)
-        .single();
-      if (error || !match) return json({ error: "Матч не найден" }, 404);
-      const provider = providers.find((p) => p.id === match.source);
-      if (!provider || provider.id !== "demo") return json({ error: "Симуляция доступна только для демо-матчей" }, 400);
-      return json(await tracked(db, provider.id, "simulate", () => simulateMatch(provider, sink, match.external_id)));
-    }
-
     const report: Record<string, unknown> = {};
     for (const provider of providers) {
-      // Платные источники по Cron обновляются не чаще раза в N часов;
+      if (!(provider instanceof OddsPapiProvider)) continue;
+      // Платный источник по Cron обновляется не чаще раза в N часов;
       // ручной запуск из админки выполняется всегда.
-      if (caller === "cron" && provider.id === "oddspapi" && (await ranRecently(db, provider.id))) {
-        report[`${provider.id}:lines`] = { skipped: 1 };
-        continue;
+      if (action === "sync" || action === "schedule") {
+        const hours = Number(Deno.env.get("SCHEDULE_INTERVAL_HOURS") ?? 12);
+        if (caller === "cron" && (await ranRecently(db, provider.id, hours, "schedule"))) {
+          report[`${provider.id}:schedule`] = { skipped: 1 };
+        } else {
+          const sports = await scheduleSports(db);
+          report[`${provider.id}:schedule`] = await tracked(db, provider.id, "schedule", () =>
+            syncSchedule(provider, createScheduleSink(db), sports),
+          );
+        }
       }
       if (action === "sync" || action === "lines") {
-        report[`${provider.id}:lines`] = await tracked(db, provider.id, "lines", () => syncLines(provider, sink));
-      }
-      if (action === "sync" || action === "results") {
-        report[`${provider.id}:results`] = await tracked(db, provider.id, "results", () => syncResults(provider, sink));
+        if (caller === "cron" && (await ranRecently(db, provider.id))) {
+          report[`${provider.id}:lines`] = { skipped: 1 };
+        } else {
+          const candidates = await propsCandidates(db);
+          report[`${provider.id}:lines`] = await tracked(db, provider.id, "lines", () =>
+            syncPropsForMatches(provider, sink, candidates),
+          );
+        }
       }
     }
+    if (action === "sync" || action === "lines") await runHouseLines(db, caller, report);
+
     if (action === "sync" || action === "results") {
       const resultsProviders = await createResultsProviders(db);
       if (resultsProviders.length > 0) {

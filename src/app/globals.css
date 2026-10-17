@@ -142,6 +142,10 @@
       radial-gradient(60rem 30rem at 85% -10%, rgb(212 255 58 / 0.06), transparent 60%),
       radial-gradient(50rem 30rem at -10% 10%, rgb(124 140 255 / 0.07), transparent 60%);
     background-attachment: fixed;
+    /* Альбомная ориентация iPhone: контент не уходит под вырез. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    overflow-x: clip;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

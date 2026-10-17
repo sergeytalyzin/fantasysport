@@ -1,6 +1,6 @@
 -- PICKUP: данные ТОЛЬКО для локальной разработки (supabase db reset).
 -- Справочники (виды спорта, лиги, рынки, множители, настройки) находятся в миграциях.
--- Демо-матчи и линии загружает Edge Function sports-sync (Demo Provider).
+-- Реальные матчи и линии загружает Edge Function sports-sync (OddsPapi).
 --
 -- Тестовые аккаунты (пароль у всех: pickup-demo-2026):
 --   admin@pickup.local   — администратор

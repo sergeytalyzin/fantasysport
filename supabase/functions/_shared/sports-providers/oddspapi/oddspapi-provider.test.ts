@@ -195,6 +195,38 @@ describe("OddsPapiProvider", () => {
     expect(calls[0]).toContain("from=2026-10-17T15%3A00%3A00Z&to=2026-10-19T15%3A00%3A00Z");
   });
 
+  it("404 «матчей не найдено» по одной лиге не мешает остальным", async () => {
+    const p = new OddsPapiProvider({
+      apiKey: "k",
+      leagues: [
+        { code: "DOTA2", sportId: "dota", opSportId: "16" },
+        { code: "NBA", sportId: "basketball", tournamentId: "132" },
+      ],
+      throttle: false,
+      fetch: (async (input: RequestInfo | URL) =>
+        String(input).includes("sportId=16")
+          ? new Response(JSON.stringify({ error: { code: "FIXTURE_NOT_FOUND" } }), { status: 404 })
+          : new Response(JSON.stringify(responses.fixtures), { status: 200 })) as typeof fetch,
+    });
+    const { matches } = await p.getMatches({ from: new Date(), to: new Date() });
+    expect(matches.map((m) => m.leagueCode)).toEqual(["NBA"]);
+  });
+
+  it("киберспорт: только турниры первого эшелона", async () => {
+    const fixture = (id: string, tournamentName: string) => ({ ...(responses.fixtures as object[])[0], fixtureId: id, tournamentName, sportId: 17 });
+    const p = new OddsPapiProvider({
+      apiKey: "k",
+      leagues: [{ code: "CS2", sportId: "cs", opSportId: "17" }],
+      throttle: false,
+      fetch: (async () =>
+        new Response(JSON.stringify([fixture("a", "IEM Chengdu"), fixture("b", "Elisa BreakOut Series"), fixture("c", "BLAST Premier")]), {
+          status: 200,
+        })) as typeof fetch,
+    });
+    const { matches } = await p.getMatches({ from: new Date(), to: new Date() });
+    expect(matches.map((m) => m.externalId)).toEqual(["a", "c"]);
+  });
+
   it("не отдаёт статистику спортсменов", async () => {
     await expect(create([]).getPlayerStats()).rejects.toBeInstanceOf(ProviderCapabilityError);
   });

@@ -6,8 +6,8 @@ import { asUser, createLineup, createUser, picks, rub, setupTestDatabase, wallet
 const db = setupTestDatabase();
 
 const sink: ExternalResultsSink = {
-  async awaiting(leagueCodes, limit) {
-    const { rows } = await db.pool.query(`select * from public.matches_awaiting_external_results($1, 0, $2)`, [leagueCodes, limit]);
+  async awaiting(codes, limit, sports) {
+    const { rows } = await db.pool.query(`select * from public.matches_awaiting_external_results($1, 0, $2, $3)`, [codes, limit, sports]);
     return rows as AwaitingMatch[];
   },
   async ingest(matchId, provider, gameId, payload) {

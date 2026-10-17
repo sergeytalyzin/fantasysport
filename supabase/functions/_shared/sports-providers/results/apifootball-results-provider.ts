@@ -17,24 +17,25 @@ import type { AwaitingMatch, ExternalGame, ExternalGameResult, ExternalPlayerLin
 interface AfEnvelope<T> {
   response?: T[];
   errors?: unknown;
+  paging?: { current: number; total: number };
 }
 
-interface AfFixture {
+export interface AfFixture {
   fixture: { id: number; date: string; status?: { short?: string } };
   league?: { id: number };
-  teams: { home: { name: string }; away: { name: string } };
+  teams: { home: { id?: number; name: string }; away: { id?: number; name: string } };
   goals?: { home: number | null; away: number | null };
 }
 
 interface AfPlayerStats {
-  games?: { minutes?: number | null };
+  games?: { minutes?: number | null; appearences?: number | null };
   shots?: { total?: number | null; on?: number | null };
   goals?: { total?: number | null };
   passes?: { total?: number | null };
 }
 
 interface AfTeamPlayers {
-  team: { name: string };
+  team: { id?: number; name: string };
   players: { player: { id: number; name: string }; statistics: AfPlayerStats[] | AfPlayerStats }[];
 }
 
@@ -44,7 +45,33 @@ export interface ApiFootballLeague {
 }
 
 // Окончание матча: основное время, после овертайма, после пенальти.
-const FINAL = new Set(["FT", "AET", "PEN"]);
+export const FINAL = new Set(["FT", "AET", "PEN"]);
+
+export interface FixturePlayerLine {
+  teamId: number | null;
+  playerId: number;
+  name: string;
+  minutes: number;
+  stats: Record<string, number>;
+}
+
+export interface SeasonPlayerTotals {
+  playerId: number;
+  name: string;
+  appearances: number;
+  minutes: number;
+  totals: Record<string, number>;
+}
+
+/** null у сыгравших игроков — это 0 (так API отдаёт нули). */
+function statsOf(s: AfPlayerStats | undefined): Record<string, number> {
+  return {
+    goals: s?.goals?.total ?? 0,
+    shots: s?.shots?.total ?? 0,
+    shots_on_target: s?.shots?.on ?? 0,
+    passes: s?.passes?.total ?? 0,
+  };
+}
 
 export class ApiFootballResultsProvider implements ResultsProvider {
   readonly id = "apifootball";
@@ -74,18 +101,83 @@ export class ApiFootballResultsProvider implements ResultsProvider {
     this.minIntervalMs = options.minIntervalMs ?? 6500;
   }
 
-  async findGames(match: AwaitingMatch): Promise<ExternalGame[]> {
-    const league = this.options.leagues.find((l) => l.code === match.league_code);
-    if (!league) return [];
-    const date = new Date(match.starts_at).toISOString().slice(0, 10);
+  /** Матчи наших лиг за дату (UTC). Один запрос на дату, кэш 30 минут. */
+  async fixturesOn(date: string): Promise<AfFixture[]> {
     const cacheKey = `apifootball:fixtures:${date}`;
-
     let fixtures = await this.cache.get<AfFixture[]>(cacheKey);
     if (!fixtures) {
       const ours = new Set(this.options.leagues.map((l) => l.leagueId));
       fixtures = (await this.get<AfFixture>("fixtures", { date })).filter((f) => ours.has(String(f.league?.id)));
       await this.cache.set(cacheKey, fixtures, 1800);
     }
+    return fixtures;
+  }
+
+  /** Статистика всех игроков матча. */
+  async fixturePlayers(gameId: string): Promise<FixturePlayerLine[]> {
+    const teams = await this.get<AfTeamPlayers>("fixtures/players", { fixture: gameId });
+    return teams.flatMap((team) =>
+      (team.players ?? []).map((entry) => {
+        const s = Array.isArray(entry.statistics) ? entry.statistics[0] : entry.statistics;
+        return {
+          teamId: team.team.id ?? null,
+          playerId: entry.player.id,
+          name: entry.player.name,
+          minutes: s?.games?.minutes ?? 0,
+          stats: statsOf(s),
+        };
+      }),
+    );
+  }
+
+  /** Состав команды (кэш 7 дней). */
+  async squad(teamId: number): Promise<{ id: number; name: string; position: string | null; number: number | null }[]> {
+    const cacheKey = `apifootball:squad:${teamId}`;
+    const cached = await this.cache.get<{ id: number; name: string; position: string | null; number: number | null }[]>(cacheKey);
+    if (cached) return cached;
+    const [entry] = await this.get<{ players: { id: number; name: string; position: string | null; number: number | null }[] }>(
+      "players/squads",
+      { team: String(teamId) },
+    );
+    const players = (entry?.players ?? []).map((p) => ({ id: p.id, name: p.name, position: p.position, number: p.number }));
+    await this.cache.set(cacheKey, players, 7 * 86_400);
+    return players;
+  }
+
+  /**
+   * Страница итогов сезона по игрокам команды в лиге. Бесплатный тариф: сезоны
+   * 2022–2024 и не больше 3 страниц выдачи — поэтому по командам, а не по лиге.
+   */
+  async seasonPlayersPage(
+    teamId: number,
+    leagueId: string,
+    season: number,
+    page: number,
+  ): Promise<{ players: SeasonPlayerTotals[]; totalPages: number }> {
+    const body = await this.envelope<{ player: { id: number; name: string }; statistics: (AfPlayerStats & { league?: { id: number } })[] }>(
+      "players",
+      { team: String(teamId), season: String(season), page: String(page) },
+    );
+    const players = (body.response ?? []).map((entry) => {
+      // У перешедших по ходу сезона игроков несколько записей — суммируем по лиге.
+      const rows = entry.statistics.filter((st) => String(st.league?.id ?? leagueId) === leagueId);
+      const totals: Record<string, number> = { goals: 0, shots: 0, shots_on_target: 0, passes: 0 };
+      let appearances = 0;
+      let minutes = 0;
+      for (const st of rows) {
+        appearances += st.games?.appearences ?? 0;
+        minutes += st.games?.minutes ?? 0;
+        for (const [k, v] of Object.entries(statsOf(st))) totals[k] += v;
+      }
+      return { playerId: entry.player.id, name: entry.player.name, appearances, minutes, totals };
+    });
+    return { players, totalPages: body.paging?.total ?? page };
+  }
+
+  async findGames(match: AwaitingMatch): Promise<ExternalGame[]> {
+    const league = this.options.leagues.find((l) => l.code === match.league_code);
+    if (!league) return [];
+    const fixtures = await this.fixturesOn(new Date(match.starts_at).toISOString().slice(0, 10));
     return fixtures
       .filter((f) => String(f.league?.id) === league.leagueId)
       .map((f) => ({
@@ -104,27 +196,11 @@ export class ApiFootballResultsProvider implements ResultsProvider {
       return { gameId, final: false, homeScore: fixture.goals?.home ?? null, awayScore: fixture.goals?.away ?? null, players: [] };
     }
 
-    const teams = await this.get<AfTeamPlayers>("fixtures/players", { fixture: gameId });
-    const players: ExternalPlayerLine[] = [];
-    for (const team of teams) {
-      for (const entry of team.players ?? []) {
-        const s = Array.isArray(entry.statistics) ? entry.statistics[0] : entry.statistics;
-        const minutes = s?.games?.minutes ?? 0;
-        const didPlay = minutes > 0;
-        players.push({
-          fullName: entry.player.name,
-          didPlay,
-          stats: didPlay
-            ? {
-                goals: s?.goals?.total ?? 0,
-                shots: s?.shots?.total ?? 0,
-                shots_on_target: s?.shots?.on ?? 0,
-                passes: s?.passes?.total ?? 0,
-              }
-            : {},
-        });
-      }
-    }
+    const players: ExternalPlayerLine[] = (await this.fixturePlayers(gameId)).map((p) => ({
+      fullName: p.name,
+      didPlay: p.minutes > 0,
+      stats: p.minutes > 0 ? p.stats : {},
+    }));
     return {
       gameId,
       final: true,
@@ -141,6 +217,10 @@ export class ApiFootballResultsProvider implements ResultsProvider {
   }
 
   private async get<T>(endpoint: string, params: Record<string, string>): Promise<T[]> {
+    return (await this.envelope<T>(endpoint, params)).response ?? [];
+  }
+
+  private async envelope<T>(endpoint: string, params: Record<string, string>): Promise<AfEnvelope<T>> {
     const wait = this.lastCall + this.minIntervalMs - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     this.lastCall = Date.now();
@@ -153,6 +233,6 @@ export class ApiFootballResultsProvider implements ResultsProvider {
     const errors = body.errors;
     const hasErrors = Array.isArray(errors) ? errors.length > 0 : errors && typeof errors === "object" && Object.keys(errors).length > 0;
     if (hasErrors) throw new Error(`apifootball: ${JSON.stringify(errors)}`);
-    return body.response ?? [];
+    return body;
   }
 }

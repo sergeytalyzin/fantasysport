@@ -8,7 +8,7 @@ import { matchPlayers, teamMatches } from "./matching.ts";
 import type { AwaitingMatch, ExternalGame, ResultsProvider } from "./types.ts";
 
 export interface ExternalResultsSink {
-  awaiting(leagueCodes: string[], limit: number): Promise<AwaitingMatch[]>;
+  awaiting(leagueCodes: string[], limit: number, sportIds: string[]): Promise<AwaitingMatch[]>;
   ingest(matchId: string, provider: string, gameId: string, payload: Record<string, unknown>): Promise<unknown>;
 }
 
@@ -43,12 +43,16 @@ export async function syncExternalResults(
 ): Promise<ExternalResultsReport> {
   const report: ExternalResultsReport = { checked: 0, confirmed: 0, needs_review: 0, pending: 0, not_found: 0, errors: [] };
   const byLeague = new Map<string, ResultsProvider>();
-  for (const p of providers) for (const l of p.leagues) if (!byLeague.has(l)) byLeague.set(l, p);
-  if (byLeague.size === 0) return report;
+  const bySport = new Map<string, ResultsProvider>();
+  for (const p of providers) {
+    for (const l of p.leagues) if (!byLeague.has(l)) byLeague.set(l, p);
+    for (const s of p.sports ?? []) if (!bySport.has(s)) bySport.set(s, p);
+  }
+  if (byLeague.size === 0 && bySport.size === 0) return report;
 
-  const matches = await sink.awaiting([...byLeague.keys()], limit);
+  const matches = await sink.awaiting([...byLeague.keys()], limit, [...bySport.keys()]);
   for (const match of matches) {
-    const provider = byLeague.get(match.league_code);
+    const provider = byLeague.get(match.league_code) ?? (match.sport_id ? bySport.get(match.sport_id) : undefined);
     if (!provider) continue;
     report.checked++;
     const label = `${match.league_code} ${match.home.name} — ${match.away.name}`;

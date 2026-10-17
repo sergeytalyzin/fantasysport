@@ -96,12 +96,15 @@ export function PlayersGrid({ sport = null, league = null, matchId = null, marke
     );
   }
   if (visible.length === 0) {
+    const filtered = Boolean(data?.length);
     return (
       <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 py-16 text-center">
         <SearchX className="size-10 text-muted-foreground" />
-        <p className="font-semibold">Линий не найдено</p>
+        <p className="font-semibold">{filtered ? "Линий не найдено" : "Открытых линий сейчас нет"}</p>
         <p className="max-w-xs text-sm text-muted-foreground">
-          Попробуйте другой показатель или фильтр. Новые линии появляются при каждой синхронизации.
+          {filtered
+            ? "Попробуйте другой показатель или фильтр."
+            : "Линии на игроков публикуют букмекеры — обычно в день матча. Они появятся здесь после ближайшей синхронизации."}
         </p>
       </div>
     );

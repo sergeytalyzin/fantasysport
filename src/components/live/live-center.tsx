@@ -4,6 +4,7 @@ import { Radio } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLiveMatch } from "@/features/live/hooks";
 import type { MatchListItem } from "@/features/matches/hooks";
+import { TeamBadge } from "@/components/matches/team-badge";
 import { pairColors } from "@/lib/team-color";
 import { FootballPitch, MatchTimeline } from "./football-pitch";
 import { HockeyRink } from "./hockey-rink";
@@ -12,7 +13,6 @@ import { EventFeed, Leaders, Scoreboard } from "./live-parts";
 const SOURCE: Record<string, string> = {
   nhl: "Данные НХЛ · обновление каждые ~15 с",
   apifootball: "Данные API-Football · обновление раз в ~3 мин",
-  demo: "Демо-симуляция: события сгенерированы",
 };
 
 const REASONS: Record<string, string> = {
@@ -29,8 +29,19 @@ export function LiveCenter({ match }: { match: Omit<MatchListItem, "lines"> }) {
   if (isLoading) return <Skeleton className="h-96 rounded-3xl" />;
   if (!snapshot) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 px-6 py-12 text-center">
-        <Radio className="size-9 text-muted-foreground" />
+      <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 px-4 py-8 text-center sm:px-6 sm:py-12">
+        <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-2">
+          {[match.home, match.away].map((t, i) => (
+            <div key={t.id} className={i === 0 ? "order-1 flex flex-col items-center gap-2" : "order-3 flex flex-col items-center gap-2"}>
+              <TeamBadge team={t} color={i === 0 ? homeColor : awayColor} className="size-12 text-xs" />
+              <span className="text-sm font-bold leading-tight">{t.name}</span>
+            </div>
+          ))}
+          <span className="order-2 text-xs font-bold uppercase text-muted-foreground">
+            {match.status === "FINISHED" ? "Завершён" : match.status === "LIVE" ? "Идёт" : "VS"}
+          </span>
+        </div>
+        <Radio className="mt-2 size-7 text-muted-foreground" />
         <p className="max-w-sm text-sm text-muted-foreground">{REASONS[data?.reason ?? "unsupported"]}</p>
       </div>
     );

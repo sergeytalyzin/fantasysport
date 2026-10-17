@@ -1,7 +1,27 @@
 // Типы данных, приходящих из Supabase (PostgREST и RPC).
 // Денежные суммы — копейки (bigint в БД, number в JSON).
 
-export type SportId = "hockey" | "football" | "basketball";
+export type SportId =
+  | "hockey"
+  | "football"
+  | "basketball"
+  | "dota"
+  | "cs"
+  | "tennis"
+  | "volleyball"
+  | "handball"
+  | "baseball"
+  | "american_football"
+  | "mma"
+  | "boxing"
+  | "table_tennis"
+  | "rugby"
+  | "cricket"
+  | "futsal"
+  | "darts"
+  | "snooker"
+  | "lol"
+  | "valorant";
 export type PlayType = "POWER" | "FLEX";
 export type PickDirection = "OVER" | "UNDER";
 export type LineupStatus = "PENDING" | "WON" | "LOST" | "PARTIALLY_WON" | "VOID" | "REFUNDED";

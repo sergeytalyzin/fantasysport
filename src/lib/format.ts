@@ -110,6 +110,14 @@ export function formatCountdown(iso: string, now: Date = new Date()): string {
   return `через ${Math.floor(hours / 24)} дн.`;
 }
 
+/** Метка дня для строки матча: «» сегодня, «завтра», «19.10» (МСК). */
+export function formatDayShort(iso: string, now: Date = new Date()): string {
+  const day = mskDayKey(iso);
+  if (day === dayKeyFormatter.format(now)) return "";
+  if (day === dayKeyFormatter.format(new Date(now.getTime() + 86_400_000))) return "завтра";
+  return shortDateFormatter.format(new Date(iso));
+}
+
 /** Только время по Москве: «19:30». */
 export function formatTime(iso: string): string {
   return timeFormatter.format(new Date(iso));

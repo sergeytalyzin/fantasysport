@@ -58,7 +58,7 @@ export function ForgotPasswordForm() {
         {isSubmitting ? <Loader2 className="animate-spin" /> : null} Отправить ссылку
       </Button>
       <p className="text-center text-sm">
-        <Link href="/login" className="font-semibold text-primary hover:underline">
+        <Link href="/login" className="-my-3 inline-block py-3 font-semibold text-primary hover:underline">
           Вспомнили пароль?
         </Link>
       </p>

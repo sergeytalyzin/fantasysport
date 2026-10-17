@@ -82,7 +82,7 @@ export function RegisterForm() {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Уже есть аккаунт?{" "}
-        <Link href="/login" className="font-semibold text-primary hover:underline">
+        <Link href="/login" className="-my-3 inline-block py-3 font-semibold text-primary hover:underline">
           Войти
         </Link>
       </p>

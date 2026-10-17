@@ -5,18 +5,15 @@
 // Публичная (только чтение), сторонние API вызываются только отсюда. Ответы
 // кэшируются в provider_cache: сколько бы зрителей ни смотрело матч, к
 // провайдеру уходит не больше одного запроса за TTL.
-//   НХЛ — play-by-play каждые 15 с; футбол — раз в 3 мин (лимит API-Football);
-//   демо — вычисляется на лету без внешних запросов.
+//   НХЛ — play-by-play каждые 15 с; футбол — раз в 3 мин (лимит API-Football).
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { type AfFixtureLive, apiFootballSnapshot } from "../_shared/live/apifootball-live.ts";
-import { demoSnapshot } from "../_shared/live/demo-live.ts";
 import { type NhlPlayByPlay, nhlSnapshot } from "../_shared/live/nhl-live.ts";
 import type { LiveSnapshot } from "../_shared/live/types.ts";
 import {
   ApiFootballResultsProvider,
   type AwaitingMatch,
-  DemoProvider,
   NhlResultsProvider,
 } from "../_shared/sports-providers/index.ts";
 import { pickGame } from "../_shared/sports-providers/results/sync-results.ts";
@@ -39,8 +36,8 @@ interface MatchRow {
   source: string;
   external_id: string;
   league: { code: string; sport_id: string; external_ids: Record<string, string> };
-  home: { name: string; short_name: string; abbr: string };
-  away: { name: string; short_name: string; abbr: string };
+  home: { name: string; short_name: string; abbr: string; name_en: string | null; abbr_en: string | null };
+  away: { name: string; short_name: string; abbr: string; name_en: string | null; abbr_en: string | null };
 }
 
 async function cacheGet<T>(db: SupabaseClient, key: string): Promise<T | null> {
@@ -83,8 +80,9 @@ const asAwaiting = (m: MatchRow): AwaitingMatch => ({
   match_id: m.id,
   league_code: m.league.code as AwaitingMatch["league_code"],
   starts_at: m.starts_at,
-  home: m.home,
-  away: m.away,
+  // Источники live называют команды по-английски.
+  home: { name: m.home.name_en ?? m.home.name, short_name: m.home.short_name, abbr: m.home.abbr_en ?? m.home.abbr },
+  away: { name: m.away.name_en ?? m.away.name, short_name: m.away.short_name, abbr: m.away.abbr_en ?? m.away.abbr },
   players: [],
   link: null,
 });
@@ -106,10 +104,6 @@ async function linkGame(
 }
 
 async function liveSnapshot(db: SupabaseClient, m: MatchRow): Promise<{ snapshot: LiveSnapshot | null; ttl: number; reason?: string }> {
-  if (m.source === "demo") {
-    return { snapshot: await demoSnapshot(new DemoProvider({ marketComponents: {} }), m.external_id), ttl: 0 };
-  }
-
   if (m.league.code === "NHL") {
     const nhl = new NhlResultsProvider();
     const link = await linkGame(db, m, nhl);
@@ -163,8 +157,8 @@ Deno.serve(async (req) => {
     .select(
       `id, starts_at, source, external_id,
        league:leagues!inner(code, sport_id, external_ids),
-       home:teams!matches_home_team_id_fkey(name, short_name, abbr),
-       away:teams!matches_away_team_id_fkey(name, short_name, abbr)`,
+       home:teams!matches_home_team_id_fkey(name, short_name, abbr, name_en, abbr_en),
+       away:teams!matches_away_team_id_fkey(name, short_name, abbr, name_en, abbr_en)`,
     )
     .eq("id", matchId)
     .maybeSingle();

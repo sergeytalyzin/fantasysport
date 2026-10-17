@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronUp, Ticket } from "lucide-react";
+import { ChevronUp, Sparkles, Ticket } from "lucide-react";
+import { LeadersWidget } from "@/components/leaderboard/leaders-widget";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { findMultiplier } from "@/features/picks/coupon-logic";
 import { usePayoutRules } from "@/features/sports/hooks";
@@ -8,8 +9,20 @@ import { formatMultiplier, plural } from "@/lib/format";
 import { useCouponStore } from "@/stores/coupon-store";
 import { CouponPanel } from "./coupon-panel";
 
-/** Десктоп: закреплённая панель справа. */
+/** Десктоп: закреплённая панель справа — купон, а пока он пуст, лидеры рейтинга. */
 export function CouponAside() {
+  const count = useCouponStore((s) => s.picks.length);
+  if (count === 0) {
+    return (
+      <aside className="sticky top-20 hidden max-h-[calc(100dvh-6rem)] w-[23rem] shrink-0 space-y-3 overflow-y-auto lg:block">
+        <LeadersWidget />
+        <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+          <Sparkles className="size-3.5 shrink-0 text-primary" />
+          Выберите от 2 до 6 прогнозов «Больше» или «Меньше» — купон появится здесь.
+        </p>
+      </aside>
+    );
+  }
   return (
     <aside className="sticky top-20 hidden max-h-[calc(100dvh-6rem)] w-[23rem] shrink-0 overflow-y-auto rounded-3xl border border-white/[0.07] bg-surface-1 p-4 lg:block">
       <CouponPanel />
@@ -45,7 +58,7 @@ export function CouponMobileBar() {
         </button>
       ) : null}
       <Sheet open={isOpen && count > 0} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto rounded-t-3xl border-white/10 px-4 pb-8 pt-6">
+        <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto overscroll-contain rounded-t-3xl border-white/10 px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-6">
           <SheetTitle className="sr-only">Купон прогнозов</SheetTitle>
           <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-white/15" aria-hidden />
           <CouponPanel onSubmitted={() => setOpen(false)} />

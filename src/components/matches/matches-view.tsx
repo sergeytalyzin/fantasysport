@@ -82,7 +82,7 @@ export function MatchesView({ sport, league }: { sport: string | null; league: s
           </h2>
           <div className="divide-y divide-white/[0.05] overflow-hidden rounded-3xl border border-white/[0.07] bg-surface-1">
             {matches.map((m) => (
-              <MatchRow key={m.id} match={m} />
+              <MatchRow key={m.id} match={m} showLeague />
             ))}
           </div>
         </section>

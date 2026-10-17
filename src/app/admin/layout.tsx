@@ -6,7 +6,7 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
   return (
     <>
       <AppHeader />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 lg:flex-row lg:gap-8 lg:px-6 lg:py-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pt-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:flex-row lg:gap-8 lg:px-6 lg:py-8">
         <aside className="lg:sticky lg:top-24 lg:w-56 lg:shrink-0 lg:self-start">
           <AdminNav />
         </aside>

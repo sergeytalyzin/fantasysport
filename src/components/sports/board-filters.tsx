@@ -2,7 +2,7 @@
 
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useLeagues, useMarkets, useSports } from "@/features/sports/hooks";
+import { useMarkets, useSports } from "@/features/sports/hooks";
 import type { SportId } from "@/types/domain";
 import { Chip, ChipRow } from "./chip";
 import { SportIcon } from "./sport-icon";
@@ -14,21 +14,29 @@ export interface BoardFilterState {
   search: string;
 }
 
+export interface LeagueChip {
+  code: string;
+  short_name: string;
+  sport_id: SportId;
+}
+
 export function BoardFilters({
   value,
   onChange,
+  leagues = [],
   show = { sports: true, markets: true, search: true },
 }: {
   value: BoardFilterState;
   onChange: (next: BoardFilterState) => void;
+  /** Лиги, где сейчас есть линии (вычисляются из загруженных данных). */
+  leagues?: LeagueChip[];
   /** Какие блоки показывать: на странице матча вид спорта и лига уже известны. */
   show?: { sports?: boolean; markets?: boolean; search?: boolean };
 }) {
   const { data: sports = [] } = useSports();
-  const { data: leagues = [] } = useLeagues();
   const { data: markets = [] } = useMarkets();
 
-  const sportLeagues = leagues.filter((l) => l.is_active && (!value.sport || l.sport_id === value.sport));
+  const sportLeagues = leagues.filter((l) => !value.sport || l.sport_id === value.sport);
   const sportMarkets = value.sport ? markets.filter((m) => m.sport_id === value.sport) : [];
 
   return (
@@ -50,21 +58,23 @@ export function BoardFilters({
             ))}
           </ChipRow>
 
-          <ChipRow>
-            <Chip active={!value.league} onClick={() => onChange({ ...value, league: null })} className="h-8 text-xs">
-              Все лиги
-            </Chip>
-            {sportLeagues.map((l) => (
-              <Chip
-                key={l.code}
-                active={value.league === l.code}
-                onClick={() => onChange({ ...value, league: l.code, sport: l.sport_id })}
-                className="h-8 text-xs"
-              >
-                {l.short_name}
+          {sportLeagues.length > 1 ? (
+            <ChipRow>
+              <Chip active={!value.league} onClick={() => onChange({ ...value, league: null })} className="h-8 text-xs">
+                Все лиги
               </Chip>
-            ))}
-          </ChipRow>
+              {sportLeagues.map((l) => (
+                <Chip
+                  key={l.code}
+                  active={value.league === l.code}
+                  onClick={() => onChange({ ...value, league: l.code, sport: l.sport_id })}
+                  className="h-8 text-xs"
+                >
+                  {l.short_name}
+                </Chip>
+              ))}
+            </ChipRow>
+          ) : null}
         </>
       ) : null}
 

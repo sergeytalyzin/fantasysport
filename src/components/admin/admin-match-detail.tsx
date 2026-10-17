@@ -1,8 +1,7 @@
 "use client";
 
-import { Ban, CheckCheck, Flag, FlaskConical, Link2 } from "lucide-react";
+import { Ban, CheckCheck, Flag, Link2 } from "lucide-react";
 import { useState } from "react";
-import { DemoBadge } from "@/components/layout/demo-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -10,7 +9,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type AdminMatch,
   confirmMatchResults,
-  invokeSportsSync,
   setMatchStatus,
   useAdminMutation,
 } from "@/features/admin/hooks";
@@ -47,11 +45,6 @@ function ResultsActions({ match }: { match: AdminMatch }) {
   const [away, setAway] = useState(match.away_score?.toString() ?? "");
   const status = useAdminMutation(setMatchStatus, "Статус матча обновлён", INVALIDATE);
   const confirm = useAdminMutation(confirmMatchResults, "Результаты подтверждены, прогнозы рассчитаны", INVALIDATE);
-  const simulate = useAdminMutation(
-    () => invokeSportsSync({ action: "simulate", match_id: match.id }),
-    "Демо-матч завершён и рассчитан",
-    INVALIDATE,
-  );
   const locked = Boolean(match.results_confirmed_at) || match.status === "CANCELLED";
 
   if (locked) {
@@ -65,11 +58,6 @@ function ResultsActions({ match }: { match: AdminMatch }) {
 
   return (
     <div className="space-y-3">
-      {match.source === "demo" ? (
-        <Button className="w-full" onClick={() => simulate.mutate(undefined)} disabled={simulate.isPending}>
-          <FlaskConical /> Симулировать завершение (демо)
-        </Button>
-      ) : null}
       <div className="flex items-center gap-2">
         <Input className="numeric w-20 text-center" inputMode="numeric" value={home} onChange={(e) => setHome(e.target.value)} aria-label="Счёт хозяев" />
         <span className="font-bold">:</span>
@@ -119,7 +107,7 @@ export function AdminMatchDetail({ match, onClose }: { match: AdminMatch | null;
                 {match.home.name} — {match.away.name}
               </SheetTitle>
               <SheetDescription className="flex items-center gap-2">
-                {match.league.short_name} · {formatDateTime(match.starts_at)} {match.source === "demo" ? <DemoBadge /> : null}
+                {match.league.short_name} · {formatDateTime(match.starts_at)}
               </SheetDescription>
             </SheetHeader>
             <div className="px-4 pb-6">

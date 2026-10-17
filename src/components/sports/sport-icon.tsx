@@ -26,6 +26,21 @@ export function SportIcon({ sport, className = "size-4" }: { sport: SportId | "a
           <path d="M3 12h18M12 3v18M5.6 5.6c3 3 3 9.8 0 12.8M18.4 5.6c-3 3-3 9.8 0 12.8" />
         </svg>
       );
+    case "dota":
+      return (
+        <svg {...common}>
+          <path d="M4 20 20 4" />
+          <path d="M4 4h5l11 11v5h-5L4 9z" />
+        </svg>
+      );
+    case "cs":
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="7" />
+          <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
+          <circle cx="12" cy="12" r="1" fill="currentColor" />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>

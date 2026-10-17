@@ -49,7 +49,7 @@ function ProviderStatus() {
         </li>
       ))}
       <li className="space-y-0.5 px-4 py-3 text-xs text-muted-foreground">
-        <p>Ключ OddsPapi: {status.data?.oddspapi_key_configured ? "задан в Supabase Secrets" : "не задан — линии от Demo Provider"}</p>
+        <p>Ключ OddsPapi: {status.data?.oddspapi_key_configured ? "задан в Supabase Secrets" : "не задан — линии не загружаются"}</p>
         <p>Ключ API-Football: {status.data?.apifootball_key_configured ? "задан" : "не задан — статистика РПЛ/АПЛ/ЛЧ вводится вручную"}</p>
       </li>
     </ul>

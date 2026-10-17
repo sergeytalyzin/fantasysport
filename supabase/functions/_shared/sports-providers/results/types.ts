@@ -1,13 +1,14 @@
 // Провайдеры результатов: фактическая статистика спортсменов для матчей,
 // линии которых пришли от другого источника (например, OddsPapi).
 
-import type { LeagueCode } from "../types.ts";
+import type { LeagueCode, SportId } from "../types.ts";
 import type { TeamNames } from "./matching.ts";
 
 /** Матч из нашей БД, ожидающий результатов (RPC matches_awaiting_external_results). */
 export interface AwaitingMatch {
   match_id: string;
   league_code: LeagueCode;
+  sport_id?: SportId;
   starts_at: string;
   home: TeamNames;
   away: TeamNames;
@@ -48,6 +49,8 @@ export interface ResultsProvider {
   /** Значение player_statistics.source и match_result_links.provider. */
   readonly id: string;
   readonly leagues: LeagueCode[];
+  /** Провайдер обслуживает вид спорта целиком (любые турниры), например Dota 2. */
+  readonly sports?: SportId[];
   /** Игры провайдера в окне вокруг времени начала (для поиска по командам). */
   findGames(match: AwaitingMatch): Promise<ExternalGame[]>;
   getGameResult(gameId: string): Promise<ExternalGameResult | null>;

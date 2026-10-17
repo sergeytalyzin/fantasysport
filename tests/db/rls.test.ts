@@ -50,7 +50,7 @@ describe("RLS и права доступа", () => {
       asUser(db.pool, user, (c) => c.query(`select public.admin_adjust_balance($1, 100, 'hack attempt')`, [victim])),
     ).rejects.toThrow(/Доступ только для администраторов/);
     await expect(
-      asUser(db.pool, user, (c) => c.query(`select public.ingest_results('demo', '{}'::jsonb)`)),
+      asUser(db.pool, user, (c) => c.query(`select public.ingest_results('oddspapi', '{}'::jsonb)`)),
     ).rejects.toThrow(/permission denied/);
   });
 
@@ -96,7 +96,7 @@ describe("RLS и права доступа", () => {
 
   it("обычный пользователь не видит журнал аудита и синхронизаций", async () => {
     const user = await createUser(db.pool);
-    await db.pool.query(`insert into public.sync_runs (provider, job) values ('demo', 'sync')`);
+    await db.pool.query(`insert into public.sync_runs (provider, job) values ('oddspapi', 'sync')`);
     await asUser(db.pool, user, async (c) => {
       expect((await c.query(`select * from public.sync_runs`)).rows).toHaveLength(0);
       expect((await c.query(`select * from public.admin_audit_logs`)).rows).toHaveLength(0);

@@ -17,7 +17,10 @@ export default function MatchPage({ params }: PageProps<"/matches/[id]">) {
           ))}
         </Suspense>
       </div>
-      <CouponAside />
+      {/* Лидеры месяца зависят от текущей даты (МСК) — вычисляется при запросе. */}
+      <Suspense fallback={<div className="hidden w-[23rem] shrink-0 lg:block" />}>
+        <CouponAside />
+      </Suspense>
       <CouponMobileBar />
     </div>
   );

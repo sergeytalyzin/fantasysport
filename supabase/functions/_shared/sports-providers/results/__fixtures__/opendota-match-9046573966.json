@@ -1,0 +1,83 @@
+{
+ "match_id": 9046573966,
+ "series_id": 1155012,
+ "series_type": 1,
+ "start_time": 1792088634,
+ "radiant_win": true,
+ "radiant_team_id": 10301745,
+ "dire_team_id": 10185598,
+ "radiant_score": 27,
+ "dire_score": 16,
+ "players": [
+  {
+   "account_id": 11865327,
+   "name": null,
+   "personaname": "Spotlight",
+   "kills": 12,
+   "isRadiant": true
+  },
+  {
+   "account_id": 480412663,
+   "name": "gpk~",
+   "personaname": "блики",
+   "kills": 7,
+   "isRadiant": true
+  },
+  {
+   "account_id": 163412639,
+   "name": null,
+   "personaname": "MINDTRICKS",
+   "kills": 5,
+   "isRadiant": true
+  },
+  {
+   "account_id": 346392468,
+   "name": null,
+   "personaname": "^^",
+   "kills": 1,
+   "isRadiant": true
+  },
+  {
+   "account_id": 114142900,
+   "name": null,
+   "personaname": "емошлендра666",
+   "kills": 1,
+   "isRadiant": true
+  },
+  {
+   "account_id": 190748369,
+   "name": null,
+   "personaname": "๋",
+   "kills": 3,
+   "isRadiant": false
+  },
+  {
+   "account_id": 194979527,
+   "name": "shigetsu",
+   "personaname": "......................",
+   "kills": 4,
+   "isRadiant": false
+  },
+  {
+   "account_id": 212037295,
+   "name": null,
+   "personaname": "ЧЕЛ ТЫ УМЕР ОТ 2К ПТС((",
+   "kills": 1,
+   "isRadiant": false
+  },
+  {
+   "account_id": 191172480,
+   "name": null,
+   "personaname": "☆",
+   "kills": 3,
+   "isRadiant": false
+  },
+  {
+   "account_id": 1150772339,
+   "name": null,
+   "personaname": "⃤⃟⃝⃤⃟⃝⃤⃟⃝⃤",
+   "kills": 4,
+   "isRadiant": false
+  }
+ ]
+}

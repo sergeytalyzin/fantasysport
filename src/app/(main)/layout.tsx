@@ -7,7 +7,7 @@ export default function MainLayout({ children }: LayoutProps<"/">) {
     <>
       <AppHeader />
       <SetupNotice />
-      <main className="mx-auto w-full max-w-7xl px-4 pb-36 pt-5 lg:px-6 lg:pb-12 lg:pt-8">{children}</main>
+      <main className="mx-auto w-full max-w-7xl px-4 pb-[calc(9rem+env(safe-area-inset-bottom))] pt-5 lg:px-6 lg:pb-12 lg:pt-8">{children}</main>
       <BottomNav />
     </>
   );

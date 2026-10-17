@@ -21,7 +21,7 @@ import { useWallet } from "@/features/wallet/hooks";
 import { formatRub } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Logo } from "./logo";
-import { isActivePath, NAV_ITEMS } from "./nav-items";
+import { isActivePath, NAV_ITEMS, RULES_ITEM } from "./nav-items";
 import { UserAvatar } from "./user-avatar";
 
 function BalanceChip() {
@@ -84,7 +84,7 @@ function UserMenu() {
 function HeaderNav({ pathname }: { pathname: string }) {
   return (
     <nav className="hidden items-center gap-1 lg:flex" aria-label="Разделы">
-      {NAV_ITEMS.slice(0, 3).map(({ href, label }) => (
+      {[...NAV_ITEMS.slice(0, 3), RULES_ITEM].map(({ href, label }) => (
         <Link
           key={href}
           href={href}
@@ -108,7 +108,7 @@ export function AppHeader() {
   const { user, isLoading } = useAuth();
 
   return (
-    <header className="glass sticky top-0 z-40 border-x-0 border-t-0">
+    <header className="glass sticky top-0 z-40 border-x-0 border-t-0 pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 lg:px-6">
         <Logo />
         <Suspense fallback={<HeaderNav pathname="" />}>

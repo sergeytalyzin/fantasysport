@@ -2,7 +2,6 @@
 
 import { ChevronRight, RefreshCw } from "lucide-react";
 import { useState } from "react";
-import { DemoBadge } from "@/components/layout/demo-badge";
 import { Chip, ChipRow } from "@/components/sports/chip";
 import { Button } from "@/components/ui/button";
 import { type AdminMatch, invokeSportsSync, type MatchFilter, useAdminMatches, useAdminMutation } from "@/features/admin/hooks";
@@ -73,7 +72,7 @@ export function AdminMatches() {
                     </p>
                     <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       {formatDateTime(m.starts_at)} · линий: {m.projections[0]?.count ?? 0}
-                      {m.source === "demo" ? <DemoBadge /> : <StatusPill tone="muted">{m.source}</StatusPill>}
+                      <StatusPill tone="muted">{m.source}</StatusPill>
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">

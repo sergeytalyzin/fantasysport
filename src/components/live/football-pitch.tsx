@@ -1,7 +1,7 @@
 import type { LiveEvent } from "@/features/live/hooks";
 import { cn } from "@/lib/utils";
 
-/** Футбольное поле 105 × 68 м. События с координатами (демо) — точками; хозяева атакуют вправо. */
+/** Футбольное поле 105 × 68 м. События с координатами — точками; хозяева атакуют вправо. */
 export function FootballPitch({
   events,
   homeColor,

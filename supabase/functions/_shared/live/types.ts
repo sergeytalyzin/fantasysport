@@ -34,7 +34,7 @@ export interface LiveLeader {
 }
 
 export interface LiveSnapshot {
-  provider: "nhl" | "apifootball" | "demo";
+  provider: "nhl" | "apifootball";
   sport: SportId;
   state: LiveState;
   /** «2-й период», «Перерыв», «67'», «Матч завершён». */

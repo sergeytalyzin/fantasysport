@@ -40,7 +40,7 @@ export function LoginForm({ next }: { next: string }) {
         <Input id="password" type="password" autoComplete="current-password" {...form.register("password")} />
       </FormField>
       <div className="text-right">
-        <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+        <Link href="/forgot-password" className="-my-3 inline-block py-3 text-xs font-semibold text-primary hover:underline">
           Забыли пароль?
         </Link>
       </div>
@@ -49,7 +49,7 @@ export function LoginForm({ next }: { next: string }) {
       </Button>
       <p className="text-center text-sm text-muted-foreground">
         Нет аккаунта?{" "}
-        <Link href="/register" className="font-semibold text-primary hover:underline">
+        <Link href="/register" className="-my-3 inline-block py-3 font-semibold text-primary hover:underline">
           Зарегистрируйтесь
         </Link>
       </p>

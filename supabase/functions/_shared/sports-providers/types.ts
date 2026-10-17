@@ -2,8 +2,29 @@
 // Код не использует API Deno/Node — только fetch, поэтому работает
 // в Supabase Edge Functions и тестируется в Vitest.
 
-export type SportId = "hockey" | "football" | "basketball";
-export type LeagueCode = "KHL" | "NHL" | "RPL" | "EPL" | "UCL" | "NBA";
+export type SportId =
+  | "hockey"
+  | "football"
+  | "basketball"
+  | "dota"
+  | "cs"
+  | "tennis"
+  | "volleyball"
+  | "handball"
+  | "baseball"
+  | "american_football"
+  | "mma"
+  | "boxing"
+  | "table_tennis"
+  | "rugby"
+  | "cricket"
+  | "futsal"
+  | "darts"
+  | "snooker"
+  | "lol"
+  | "valorant";
+/** Код лиги: фиксированные (NHL, RPL…) или созданные из турниров OddsPapi (OP_<id>). */
+export type LeagueCode = string;
 export type MatchStatus = "SCHEDULED" | "LIVE" | "FINISHED" | "CANCELLED" | "POSTPONED";
 
 export interface ProviderSport {
@@ -95,11 +116,8 @@ export interface SportsDataProvider {
   getMatches(range: DateRange): Promise<{ matches: ProviderMatch[]; teams: ProviderTeam[] }>;
   getPlayers(params: { matchExternalIds: string[] }): Promise<ProviderPlayer[]>;
   getPlayerProps(params: { matchExternalIds: string[] }): Promise<ProviderPlayerProp[]>;
-  /**
-   * Фактическая статистика матча. null — результатов пока нет.
-   * force — только для Demo Provider: досрочно «завершить» матч.
-   */
-  getPlayerStats(params: { matchExternalId: string; force?: boolean }): Promise<ProviderMatchResult | null>;
+  /** Фактическая статистика матча. null — результатов пока нет. */
+  getPlayerStats(params: { matchExternalId: string }): Promise<ProviderMatchResult | null>;
 }
 
 export class ProviderCapabilityError extends Error {

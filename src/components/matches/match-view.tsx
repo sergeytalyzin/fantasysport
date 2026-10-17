@@ -3,7 +3,6 @@
 import { ArrowLeft, Clock } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DemoBadge } from "@/components/layout/demo-badge";
 import { EmptyState } from "@/components/layout/page-header";
 import { PlayersGrid } from "@/components/picks/board-view";
 import { BoardFilters, type BoardFilterState } from "@/components/sports/board-filters";
@@ -28,7 +27,7 @@ function useNow(intervalMs = 60_000) {
 
 export function MatchView({ matchId }: { matchId: string }) {
   const { data: match, isLoading } = useMatch(matchId);
-  const { data: lines = [] } = useBoard({ sport: null, league: null, matchId });
+  const { data: lines = [], isLoading: linesLoading } = useBoard({ sport: null, league: null, matchId });
   const now = useNow();
   const [filters, setFilters] = useState<BoardFilterState>({ sport: null, league: null, market: null, search: "" });
   const [teamId, setTeamId] = useState<string | null>(null);
@@ -49,12 +48,11 @@ export function MatchView({ matchId }: { matchId: string }) {
     // Матч идёт или завершён: вместо линий — онлайн-трансляция.
     return (
       <div className="space-y-5">
-        <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
+        <Link href="/" className="-my-3 inline-flex items-center gap-1.5 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" /> Все матчи
         </Link>
         <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
           <span className="rounded-md bg-white/10 px-2 py-0.5 text-foreground">{match.league.short_name}</span>
-          {match.source === "demo" ? <DemoBadge /> : null}
           <span>{formatKickoff(match.starts_at, now)}</span>
         </div>
         <LiveCenter match={match} />
@@ -68,7 +66,7 @@ export function MatchView({ matchId }: { matchId: string }) {
 
   return (
     <div className="space-y-5">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
+      <Link href="/" className="-my-3 inline-flex items-center gap-1.5 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> Все матчи
       </Link>
 
@@ -80,7 +78,6 @@ export function MatchView({ matchId }: { matchId: string }) {
         />
         <div className="relative flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
           <span className="rounded-md bg-white/10 px-2 py-0.5 text-foreground">{match.league.short_name}</span>
-          {match.source === "demo" ? <DemoBadge /> : null}
         </div>
         <div className="relative mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3">
           <div className="flex flex-col items-center gap-2.5 text-center">
@@ -105,6 +102,11 @@ export function MatchView({ matchId }: { matchId: string }) {
         </div>
       </section>
 
+      {!linesLoading && lines.length === 0 ? (
+        <EmptyState icon={<Clock className="size-10" />} title="Линий на этот матч нет">
+          Букмекеры не выставили линии на игроков этого матча. Расписание и результаты — реальные данные из API.
+        </EmptyState>
+      ) : (
       <>
           <BoardFilters
             value={{ ...filters, sport: match.league.sport_id }}
@@ -125,6 +127,7 @@ export function MatchView({ matchId }: { matchId: string }) {
           ) : null}
           <PlayersGrid matchId={matchId} market={filters.market} search={filters.search} teamId={teamId} />
       </>
+      )}
     </div>
   );
 }
