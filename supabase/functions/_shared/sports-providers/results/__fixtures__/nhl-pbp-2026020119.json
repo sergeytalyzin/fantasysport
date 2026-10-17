@@ -1,0 +1,414 @@
+{
+ "rosterSpots": [
+  {
+   "teamId": 21,
+   "playerId": 8470613,
+   "firstName": {
+    "default": "Brent"
+   },
+   "lastName": {
+    "default": "Burns"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8471215,
+   "firstName": {
+    "default": "Evgeni",
+    "cs": "Jevgenij",
+    "fi": "Jevgeni",
+    "sk": "Jevgenij"
+   },
+   "lastName": {
+    "default": "Malkin"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8471675,
+   "firstName": {
+    "default": "Sidney"
+   },
+   "lastName": {
+    "default": "Crosby"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8471724,
+   "firstName": {
+    "default": "Kris"
+   },
+   "lastName": {
+    "default": "Letang"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8474578,
+   "firstName": {
+    "default": "Erik"
+   },
+   "lastName": {
+    "default": "Karlsson"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8475172,
+   "firstName": {
+    "default": "Nazem"
+   },
+   "lastName": {
+    "default": "Kadri"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8475754,
+   "firstName": {
+    "default": "Brock"
+   },
+   "lastName": {
+    "default": "Nelson"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8475768,
+   "firstName": {
+    "default": "Jaden"
+   },
+   "lastName": {
+    "default": "Schwartz"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8475809,
+   "firstName": {
+    "default": "Scott"
+   },
+   "lastName": {
+    "default": "Wedgewood"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8475810,
+   "firstName": {
+    "default": "Bryan"
+   },
+   "lastName": {
+    "default": "Rust"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8476312,
+   "firstName": {
+    "default": "Josh"
+   },
+   "lastName": {
+    "default": "Manson"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8476455,
+   "firstName": {
+    "default": "Gabriel"
+   },
+   "lastName": {
+    "default": "Landeskog"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8476483,
+   "firstName": {
+    "default": "Rickard"
+   },
+   "lastName": {
+    "default": "Rakell"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8476967,
+   "firstName": {
+    "default": "Brett"
+   },
+   "lastName": {
+    "default": "Kulak"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8477476,
+   "firstName": {
+    "default": "Artturi"
+   },
+   "lastName": {
+    "default": "Lehkonen"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8477492,
+   "firstName": {
+    "default": "Nathan"
+   },
+   "lastName": {
+    "default": "MacKinnon"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8478038,
+   "firstName": {
+    "default": "Devon"
+   },
+   "lastName": {
+    "default": "Toews"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8478406,
+   "firstName": {
+    "default": "Mackenzie"
+   },
+   "lastName": {
+    "default": "Blackwood"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8478438,
+   "firstName": {
+    "default": "Tommy"
+   },
+   "lastName": {
+    "default": "Novak"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8478454,
+   "firstName": {
+    "default": "Noah"
+   },
+   "lastName": {
+    "default": "Juulsen"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8479398,
+   "firstName": {
+    "default": "Samuel"
+   },
+   "lastName": {
+    "default": "Girard"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8480039,
+   "firstName": {
+    "default": "Martin"
+   },
+   "lastName": {
+    "default": "Necas",
+    "cs": "Nečas",
+    "sk": "Nečas"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8480069,
+   "firstName": {
+    "default": "Cale"
+   },
+   "lastName": {
+    "default": "Makar"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8480448,
+   "firstName": {
+    "default": "Parker"
+   },
+   "lastName": {
+    "default": "Kelly"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8480980,
+   "firstName": {
+    "default": "Connor"
+   },
+   "lastName": {
+    "default": "Dewar"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481056,
+   "firstName": {
+    "default": "Spencer"
+   },
+   "lastName": {
+    "default": "Stastney"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481481,
+   "firstName": {
+    "default": "Blake"
+   },
+   "lastName": {
+    "default": "Lizotte"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481527,
+   "firstName": {
+    "default": "Kaedan"
+   },
+   "lastName": {
+    "default": "Korczak"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481582,
+   "firstName": {
+    "default": "Nick"
+   },
+   "lastName": {
+    "default": "Robertson"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481668,
+   "firstName": {
+    "default": "Arturs"
+   },
+   "lastName": {
+    "default": "Silovs",
+    "cs": "Šilovs",
+    "sk": "Šilovs"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8481725,
+   "firstName": {
+    "default": "Elmer"
+   },
+   "lastName": {
+    "default": "Soderblom",
+    "sv": "Söderblom"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8482758,
+   "firstName": {
+    "default": "Ville"
+   },
+   "lastName": {
+    "default": "Koivunen"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8482768,
+   "firstName": {
+    "default": "Fedor"
+   },
+   "lastName": {
+    "default": "Svechkov"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8483398,
+   "firstName": {
+    "default": "Declan"
+   },
+   "lastName": {
+    "default": "Carlile"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8483703,
+   "firstName": {
+    "default": "Sergei"
+   },
+   "lastName": {
+    "default": "Murashov"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8483808,
+   "firstName": {
+    "default": "Andrei",
+    "cs": "Andrej",
+    "sk": "Andrej"
+   },
+   "lastName": {
+    "default": "Kuzmenko"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8484149,
+   "firstName": {
+    "default": "Gavin"
+   },
+   "lastName": {
+    "default": "Brindley"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8484258,
+   "firstName": {
+    "default": "Sam"
+   },
+   "lastName": {
+    "default": "Malinski"
+   }
+  },
+  {
+   "teamId": 5,
+   "playerId": 8485414,
+   "firstName": {
+    "default": "Ben"
+   },
+   "lastName": {
+    "default": "Kindel"
+   }
+  },
+  {
+   "teamId": 21,
+   "playerId": 8486171,
+   "firstName": {
+    "default": "T.J."
+   },
+   "lastName": {
+    "default": "Hughes"
+   }
+  }
+ ]
+}
