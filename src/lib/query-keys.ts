@@ -5,7 +5,7 @@ export const queryKeys = {
   markets: ["markets"] as const,
   settings: ["app-settings"] as const,
   payoutRules: ["payout-rules"] as const,
-  board: (filters: { sport: string | null; league: string | null }) => ["board", filters] as const,
+  board: (filters: { sport: string | null; league: string | null; matchId?: string | null }) => ["board", filters] as const,
   boardAll: ["board"] as const,
   wallet: (userId: string) => ["wallet", userId] as const,
   walletAll: ["wallet"] as const,

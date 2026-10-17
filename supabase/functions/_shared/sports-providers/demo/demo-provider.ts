@@ -45,6 +45,15 @@ const SPORT_NAMES: Record<SportId, string> = {
   basketball: "Баскетбол",
 };
 
+export interface DemoMatchInfo {
+  externalId: string;
+  sportId: SportId;
+  startsAt: string;
+  durationMinutes: number;
+  home: { name: string; players: { externalId: string; name: string }[] };
+  away: { name: string; players: { externalId: string; name: string }[] };
+}
+
 interface DemoMatch {
   externalId: string;
   league: DemoLeagueSeed;
@@ -199,6 +208,24 @@ export class DemoProvider implements SportsDataProvider {
       awayScore: teamGoals.away + poisson(rng, rest),
       confirmed: true,
       players,
+    };
+  }
+
+  /** Описание демо-матча для live-симуляции (без статистики). */
+  describeMatch(matchExternalId: string): DemoMatchInfo | null {
+    const match = this.findMatch(matchExternalId);
+    if (!match) return null;
+    const side = (team: DemoTeamSeed) => ({
+      name: team.name,
+      players: team.players.map((p) => ({ externalId: playerExternalId(p), name: p.name })),
+    });
+    return {
+      externalId: match.externalId,
+      sportId: match.league.sportId,
+      startsAt: match.startsAt.toISOString(),
+      durationMinutes: match.league.durationMinutes,
+      home: side(match.home),
+      away: side(match.away),
     };
   }
 

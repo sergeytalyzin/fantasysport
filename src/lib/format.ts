@@ -85,6 +85,36 @@ export function formatKickoffShort(iso: string, now: Date = new Date()): string 
   return `${shortDateFormatter.format(date)} ${time}`;
 }
 
+const weekdayFormatter = new Intl.DateTimeFormat("ru-RU", { timeZone: TIME_ZONE, weekday: "long", day: "numeric", month: "long" });
+
+/** Ключ дня по Москве (для группировки): «2026-10-17». */
+export function mskDayKey(iso: string): string {
+  return dayKeyFormatter.format(new Date(iso));
+}
+
+/** Заголовок дня: «Сегодня», «Завтра», «вторник, 20 октября» (МСК). */
+export function formatMatchDay(iso: string, now: Date = new Date()): string {
+  const day = mskDayKey(iso);
+  if (day === dayKeyFormatter.format(now)) return "Сегодня";
+  if (day === dayKeyFormatter.format(new Date(now.getTime() + 86_400_000))) return "Завтра";
+  return weekdayFormatter.format(new Date(iso));
+}
+
+/** Время до начала: «через 2 ч 15 мин», «через 3 дн.», «начинается». */
+export function formatCountdown(iso: string, now: Date = new Date()): string {
+  const minutes = Math.round((new Date(iso).getTime() - now.getTime()) / 60_000);
+  if (minutes <= 0) return "начинается";
+  if (minutes < 60) return `через ${minutes} мин`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `через ${hours} ч ${minutes % 60} мин`;
+  return `через ${Math.floor(hours / 24)} дн.`;
+}
+
+/** Только время по Москве: «19:30». */
+export function formatTime(iso: string): string {
+  return timeFormatter.format(new Date(iso));
+}
+
 const MONTHS = [
   "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
   "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",

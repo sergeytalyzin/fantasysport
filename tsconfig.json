@@ -25,6 +25,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@shared/*": [
+        "./supabase/functions/_shared/*"
       ]
     },
     "allowImportingTsExtensions": true
@@ -39,6 +42,7 @@
   ],
   "exclude": [
     "node_modules",
-    "supabase/functions/sports-sync"
+    "supabase/functions/sports-sync",
+    "supabase/functions/live-match"
   ]
 }

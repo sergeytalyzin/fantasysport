@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchX } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CouponPick } from "@/features/picks/coupon-logic";
@@ -11,7 +11,6 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage } from "@/lib/errors";
 import { useCouponStore } from "@/stores/coupon-store";
 import type { BoardProjection, PickDirection } from "@/types/domain";
-import { BoardFilters, type BoardFilterState } from "../sports/board-filters";
 import { ProjectionCard } from "./projection-card";
 
 function toPick(p: BoardProjection, direction: PickDirection): CouponPick {
@@ -39,10 +38,20 @@ const TOASTS: Partial<Record<string, string>> = {
   replaced: "Один спортсмен — один прогноз: выбор заменён",
 };
 
-export function BoardView() {
-  const [filters, setFilters] = useState<BoardFilterState>({ sport: null, league: null, market: null, search: "" });
-  const search = useDebouncedValue(filters.search.trim().toLowerCase(), 250);
-  const { data, isLoading, isError, error } = useBoard({ sport: filters.sport, league: filters.league });
+export interface PlayersGridProps {
+  sport?: string | null;
+  league?: string | null;
+  matchId?: string | null;
+  market?: string | null;
+  search?: string;
+  /** Только спортсмены этой команды. */
+  teamId?: string | null;
+}
+
+/** Сетка карточек «Больше/Меньше» с добавлением в купон. */
+export function PlayersGrid({ sport = null, league = null, matchId = null, market = null, search = "", teamId = null }: PlayersGridProps) {
+  const query = useDebouncedValue(search.trim().toLowerCase(), 250);
+  const { data, isLoading, isError, error } = useBoard({ sport, league, matchId });
   const { data: settings } = useAppSettings();
   const picks = useCouponStore((s) => s.picks);
   const toggle = useCouponStore((s) => s.toggle);
@@ -52,12 +61,13 @@ export function BoardView() {
   const visible = useMemo(() => {
     if (!data) return [];
     return data.filter((p) => {
-      if (filters.market && p.market.code !== filters.market) return false;
-      if (!search) return true;
+      if (market && p.market.code !== market) return false;
+      if (teamId && p.player.team?.id !== teamId) return false;
+      if (!query) return true;
       const haystack = `${p.player.full_name} ${p.player.team?.name ?? ""} ${p.match.home.name} ${p.match.away.name}`.toLowerCase();
-      return haystack.includes(search);
+      return haystack.includes(query);
     });
-  }, [data, filters.market, search]);
+  }, [data, market, teamId, query]);
 
   const onPick = useCallback(
     (projection: BoardProjection, direction: PickDirection) => {
@@ -69,37 +79,40 @@ export function BoardView() {
     [toggle, settings?.max_picks],
   );
 
+  if (isError) {
+    return (
+      <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
+        Не удалось загрузить линии: {errorMessage(error)}
+      </div>
+    );
+  }
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="h-[19.5rem] rounded-3xl" />
+        ))}
+      </div>
+    );
+  }
+  if (visible.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 py-16 text-center">
+        <SearchX className="size-10 text-muted-foreground" />
+        <p className="font-semibold">Линий не найдено</p>
+        <p className="max-w-xs text-sm text-muted-foreground">
+          Попробуйте другой показатель или фильтр. Новые линии появляются при каждой синхронизации.
+        </p>
+      </div>
+    );
+  }
   return (
-    <div className="space-y-5">
-      <BoardFilters value={filters} onChange={setFilters} />
-
-      {isError ? (
-        <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-          Не удалось загрузить линии: {errorMessage(error)}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+      {visible.map((p, i) => (
+        <div key={p.id} className="animate-rise" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
+          <ProjectionCard projection={p} selected={selected.get(p.id) ?? null} onPick={onPick} linkToMatch={!matchId} />
         </div>
-      ) : isLoading ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }, (_, i) => (
-            <Skeleton key={i} className="h-[19.5rem] rounded-3xl" />
-          ))}
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 py-16 text-center">
-          <SearchX className="size-10 text-muted-foreground" />
-          <p className="font-semibold">Линий не найдено</p>
-          <p className="max-w-xs text-sm text-muted-foreground">
-            Попробуйте другой вид спорта или лигу. Новые линии появляются при каждой синхронизации.
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {visible.map((p, i) => (
-            <div key={p.id} className="animate-rise" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
-              <ProjectionCard projection={p} selected={selected.get(p.id) ?? null} onPick={onPick} />
-            </div>
-          ))}
-        </div>
-      )}
+      ))}
     </div>
   );
 }

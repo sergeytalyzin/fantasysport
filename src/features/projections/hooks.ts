@@ -24,9 +24,10 @@ const BOARD_SELECT = `
 export interface BoardFilters {
   sport: string | null;
   league: string | null;
+  matchId?: string | null;
 }
 
-export async function fetchBoard({ sport, league }: BoardFilters): Promise<BoardProjection[]> {
+export async function fetchBoard({ sport, league, matchId }: BoardFilters): Promise<BoardProjection[]> {
   let query = getSupabaseBrowserClient()
     .from("projections")
     .select(BOARD_SELECT)
@@ -36,6 +37,7 @@ export async function fetchBoard({ sport, league }: BoardFilters): Promise<Board
     .limit(1000);
   if (sport) query = query.eq("match.league.sport_id", sport);
   if (league) query = query.eq("match.league.code", league);
+  if (matchId) query = query.eq("match_id", matchId);
 
   const rows = unwrap(await query) as unknown as BoardProjection[];
   return rows

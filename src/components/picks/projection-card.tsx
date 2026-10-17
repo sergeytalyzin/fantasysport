@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowDown, ArrowUp, Clock } from "lucide-react";
+import Link from "next/link";
 import { memo } from "react";
 import { DemoBadge } from "@/components/layout/demo-badge";
 import { PlayerPhoto } from "@/components/sports/player-photo";
@@ -12,9 +13,11 @@ interface ProjectionCardProps {
   projection: BoardProjection;
   selected: PickDirection | null;
   onPick: (projection: BoardProjection, direction: PickDirection) => void;
+  /** Строка с матчем ведёт на страницу матча. */
+  linkToMatch?: boolean;
 }
 
-function ProjectionCardBase({ projection, selected, onPick }: ProjectionCardProps) {
+function ProjectionCardBase({ projection, selected, onPick, linkToMatch = false }: ProjectionCardProps) {
   const { player, match, market } = projection;
   const team = player.team;
   const opponent = team?.id === match.home.id ? match.away : match.home;
@@ -56,10 +59,27 @@ function ProjectionCardBase({ projection, selected, onPick }: ProjectionCardProp
         <h3 className="mt-3 line-clamp-2 min-h-[2.5rem] font-sans text-[0.95rem] font-bold leading-tight tracking-normal">
           {player.full_name}
         </h3>
-        <p className="mt-0.5 max-w-full truncate text-xs text-muted-foreground" title={player.position ?? undefined}>
-          {team ? `${team.abbr} ${isHome ? "vs" : "@"} ${opponent.abbr}` : `${match.home.abbr} – ${match.away.abbr}`}
-          {player.position ? ` · ${player.position}` : ""}
-        </p>
+        {(() => {
+          const label = (
+            <>
+              {team ? `${team.abbr} ${isHome ? "vs" : "@"} ${opponent.abbr}` : `${match.home.abbr} – ${match.away.abbr}`}
+              {player.position ? ` · ${player.position}` : ""}
+            </>
+          );
+          return linkToMatch ? (
+            <Link
+              href={`/matches/${match.id}`}
+              className="mt-0.5 max-w-full truncate text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              title="Все линии матча"
+            >
+              {label}
+            </Link>
+          ) : (
+            <p className="mt-0.5 max-w-full truncate text-xs text-muted-foreground" title={player.position ?? undefined}>
+              {label}
+            </p>
+          );
+        })()}
       </div>
 
       <div className="relative mx-3 mt-3 flex flex-col items-center rounded-2xl bg-surface-2 py-2.5">

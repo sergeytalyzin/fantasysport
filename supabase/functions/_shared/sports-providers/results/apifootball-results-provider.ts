@@ -134,6 +134,12 @@ export class ApiFootballResultsProvider implements ResultsProvider {
     };
   }
 
+  /** Сырой матч со статусом и событиями для live-экрана (1 запрос). */
+  async getFixtureLive<T>(gameId: string): Promise<T | null> {
+    const [fixture] = await this.get<T>("fixtures", { id: gameId });
+    return fixture ?? null;
+  }
+
   private async get<T>(endpoint: string, params: Record<string, string>): Promise<T[]> {
     const wait = this.lastCall + this.minIntervalMs - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));

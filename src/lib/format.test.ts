@@ -3,6 +3,8 @@ import {
   currentMskPeriod,
   formatKickoff,
   formatKickoffShort,
+  formatMatchDay,
+  formatCountdown,
   formatLine,
   formatMultiplier,
   formatRub,
@@ -45,6 +47,17 @@ describe("format", () => {
     expect(formatKickoffShort("2026-10-17T16:30:00Z", now)).toBe("19:30");
     expect(formatKickoffShort("2026-10-18T00:00:00Z", now)).toBe("завтра 03:00");
     expect(formatKickoffShort("2026-10-20T14:00:00Z", now)).toBe("20.10 17:00");
+  });
+
+  it("formatMatchDay и formatCountdown", () => {
+    const now = new Date("2026-10-17T10:00:00Z");
+    expect(formatMatchDay("2026-10-17T16:30:00Z", now)).toBe("Сегодня");
+    expect(formatMatchDay("2026-10-18T00:00:00Z", now)).toBe("Завтра");
+    expect(formatMatchDay("2026-10-20T14:00:00Z", now)).toBe("вторник, 20 октября");
+    expect(formatCountdown("2026-10-17T12:15:00Z", now)).toBe("через 2 ч 15 мин");
+    expect(formatCountdown("2026-10-17T10:40:00Z", now)).toBe("через 40 мин");
+    expect(formatCountdown("2026-10-20T10:00:00Z", now)).toBe("через 3 дн.");
+    expect(formatCountdown("2026-10-17T09:00:00Z", now)).toBe("начинается");
   });
 
   it("currentMskPeriod учитывает смещение +3", () => {

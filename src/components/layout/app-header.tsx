@@ -2,6 +2,7 @@
 
 import { LogIn, LogOut, Shield, UserRound, Wallet } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -80,28 +81,39 @@ function UserMenu() {
   );
 }
 
+function HeaderNav({ pathname }: { pathname: string }) {
+  return (
+    <nav className="hidden items-center gap-1 lg:flex" aria-label="Разделы">
+      {NAV_ITEMS.slice(0, 3).map(({ href, label }) => (
+        <Link
+          key={href}
+          href={href}
+          className={cn(
+            "rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors",
+            isActivePath(pathname, href) ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
+function ActiveHeaderNav() {
+  return <HeaderNav pathname={usePathname()} />;
+}
+
 export function AppHeader() {
   const { user, isLoading } = useAuth();
-  const pathname = usePathname();
 
   return (
     <header className="glass sticky top-0 z-40 border-x-0 border-t-0">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 lg:px-6">
         <Logo />
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Разделы">
-          {NAV_ITEMS.slice(0, 3).map(({ href, label }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors",
-                isActivePath(pathname, href) ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-            </Link>
-          ))}
-        </nav>
+        <Suspense fallback={<HeaderNav pathname="" />}>
+          <ActiveHeaderNav />
+        </Suspense>
         <div className="ml-auto flex items-center gap-2.5">
           {isLoading ? (
             <Skeleton className="h-9 w-28" />

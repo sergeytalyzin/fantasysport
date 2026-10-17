@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
 import { cn } from "@/lib/utils";
 import { isActivePath, NAV_ITEMS } from "./nav-items";
 
-export function BottomNav() {
-  const pathname = usePathname();
+function BottomNavLinks({ pathname }: { pathname: string }) {
   return (
     <nav className="glass safe-bottom fixed inset-x-0 bottom-0 z-40 border-x-0 border-b-0 lg:hidden" aria-label="Основная навигация">
       <ul className="mx-auto grid max-w-lg grid-cols-5 px-2 pt-1.5">
@@ -30,5 +30,18 @@ export function BottomNav() {
         })}
       </ul>
     </nav>
+  );
+}
+
+function ActiveBottomNav() {
+  return <BottomNavLinks pathname={usePathname()} />;
+}
+
+/** Путь — данные запроса (динамические маршруты), поэтому подсветка внутри Suspense. */
+export function BottomNav() {
+  return (
+    <Suspense fallback={<BottomNavLinks pathname="" />}>
+      <ActiveBottomNav />
+    </Suspense>
   );
 }

@@ -121,6 +121,11 @@ export class NhlResultsProvider implements ResultsProvider {
     };
   }
 
+  /** Сырой play-by-play для live-экрана. */
+  getPlayByPlay<T>(gameId: string): Promise<T> {
+    return this.get<T>(`gamecenter/${gameId}/play-by-play`);
+  }
+
   private async get<T>(path: string): Promise<T> {
     const url = `${this.baseUrl}/${path}`;
     const res = await this.fetchImpl(url, { headers: { Accept: "application/json" } });
