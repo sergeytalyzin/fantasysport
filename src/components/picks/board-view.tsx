@@ -1,17 +1,13 @@
 "use client";
 
-import { SearchX } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
-import { Skeleton } from "@/components/ui/skeleton";
 import type { CouponPick } from "@/features/picks/coupon-logic";
-import { useBoard } from "@/features/projections/hooks";
 import { useAppSettings } from "@/features/sports/hooks";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 import { useCouponStore } from "@/stores/coupon-store";
 import type { BoardProjection, PickDirection } from "@/types/domain";
-import { ProjectionCard } from "./projection-card";
 
 function toPick(p: BoardProjection, direction: PickDirection): CouponPick {
   const team = p.player.team;
@@ -39,36 +35,12 @@ const TOASTS: Partial<Record<string, string>> = {
   replaced: "Один спортсмен — один прогноз: выбор заменён",
 };
 
-export interface PlayersGridProps {
-  sport?: string | null;
-  league?: string | null;
-  matchId?: string | null;
-  market?: string | null;
-  search?: string;
-  /** Только спортсмены этой команды. */
-  teamId?: string | null;
-}
-
-/** Сетка карточек «Больше/Меньше» с добавлением в купон. */
-export function PlayersGrid({ sport = null, league = null, matchId = null, market = null, search = "", teamId = null }: PlayersGridProps) {
-  const query = useDebouncedValue(search.trim().toLowerCase(), 250);
-  const { data, isLoading, isError, error } = useBoard({ sport, league, matchId });
+/** Выбор «Больше/Меньше» в купон и текущие выборы купона. */
+export function usePickHandler() {
   const { data: settings } = useAppSettings();
   const picks = useCouponStore((s) => s.picks);
   const toggle = useCouponStore((s) => s.toggle);
-
   const selected = useMemo(() => new Map(picks.map((p) => [p.projectionId, p.direction])), [picks]);
-
-  const visible = useMemo(() => {
-    if (!data) return [];
-    return data.filter((p) => {
-      if (market && p.market.code !== market) return false;
-      if (teamId && p.player.team?.id !== teamId) return false;
-      if (!query) return true;
-      const haystack = `${p.player.full_name} ${p.player.team?.name ?? ""} ${p.match.home.name} ${p.match.away.name}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [data, market, teamId, query]);
 
   const onPick = useCallback(
     (projection: BoardProjection, direction: PickDirection) => {
@@ -80,43 +52,31 @@ export function PlayersGrid({ sport = null, league = null, matchId = null, marke
     [toggle, settings?.max_picks],
   );
 
-  if (isError) {
-    return (
-      <div className="rounded-3xl border border-destructive/30 bg-destructive/10 p-6 text-sm text-destructive">
-        Не удалось загрузить линии: {errorMessage(error)}
-      </div>
-    );
-  }
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton key={i} className="h-[19.5rem] rounded-3xl" />
-        ))}
-      </div>
-    );
-  }
-  if (visible.length === 0) {
-    const filtered = Boolean(data?.length);
-    return (
-      <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed border-white/10 py-16 text-center">
-        <SearchX className="size-10 text-muted-foreground" />
-        <p className="font-semibold">{filtered ? "Линий не найдено" : "Открытых линий сейчас нет"}</p>
-        <p className="max-w-xs text-sm text-muted-foreground">
-          {filtered
-            ? "Попробуйте другой показатель или фильтр."
-            : "Линии на игроков публикуют букмекеры — обычно в день матча. Они появятся здесь после ближайшей синхронизации."}
-        </p>
-      </div>
-    );
-  }
+  return { selected, onPick };
+}
+
+export function PickButton({ direction, active, onClick }: { direction: PickDirection; active: boolean; onClick: () => void }) {
+  const over = direction === "OVER";
+  const Icon = over ? ArrowUp : ArrowDown;
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-      {visible.map((p, i) => (
-        <div key={p.id} className="animate-rise" style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}>
-          <ProjectionCard projection={p} selected={selected.get(p.id) ?? null} onPick={onPick} linkToMatch={!matchId} />
-        </div>
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "flex h-11 items-center justify-center gap-1 rounded-xl text-[0.8rem] font-extrabold transition-colors active:scale-95 sm:text-sm",
+        active && "animate-pick-pop",
+        over
+          ? active
+            ? "bg-over text-primary-foreground"
+            : "bg-over/10 text-over hover:bg-over/20"
+          : active
+            ? "bg-under text-white"
+            : "bg-under/10 text-under hover:bg-under/20",
+      )}
+    >
+      <Icon className="size-3.5 shrink-0" strokeWidth={3} />
+      {over ? "Больше" : "Меньше"}
+    </button>
   );
 }

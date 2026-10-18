@@ -98,3 +98,42 @@ export function useMyMonthlyRank(year: number, month: number) {
     },
   });
 }
+
+export interface RoiLeaderboardRow {
+  rank: number;
+  user_id: string;
+  nickname: string;
+  avatar_url: string | null;
+  lineups_settled: number;
+  profit: number;
+  staked: number;
+  roi: number;
+}
+
+/** Рейтинг прогнозистов: ROI рассчитанных прогнозов за текущий месяц (МСК). */
+export function useRoiLeaderboard(limit = 5) {
+  return useQuery({
+    queryKey: ["leaderboard", "roi", limit],
+    refetchInterval: REFRESH,
+    queryFn: async () =>
+      (unwrap(await getSupabaseBrowserClient().rpc("get_roi_leaderboard", { p_limit: limit })) as RoiLeaderboardRow[]).map((r) => ({
+        ...r,
+        roi: Number(r.roi),
+      })),
+  });
+}
+
+export function useMyRoiRank() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["leaderboard", "roi", "me", user?.id ?? ""],
+    enabled: Boolean(user),
+    refetchInterval: REFRESH,
+    queryFn: async () => {
+      const rows = unwrap(await getSupabaseBrowserClient().rpc("get_my_roi_rank")) as (Omit<RoiLeaderboardRow, "user_id" | "nickname" | "avatar_url"> & {
+        total_players: number;
+      })[];
+      return rows[0] ? { ...rows[0], roi: Number(rows[0].roi) } : null;
+    },
+  });
+}

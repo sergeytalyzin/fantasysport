@@ -7,7 +7,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Линии", icon: LayoutGrid },
+  { href: "/", label: "Линия", icon: LayoutGrid },
   { href: "/lineups", label: "Мои прогнозы", icon: Ticket },
   { href: "/leaderboard", label: "Рейтинг", icon: Trophy },
   { href: "/wallet", label: "Кошелёк", icon: Wallet },

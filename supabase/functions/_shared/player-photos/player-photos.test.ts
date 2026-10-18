@@ -112,7 +112,7 @@ describe("syncPlayerPhotos", () => {
         ] });
       }
       if (u.endsWith("/v1/roster/TBL/current")) {
-        return json({ forwards: [{ id: 8476453, firstName: { default: "Nikita" }, lastName: { default: "Kucherov" }, headshot: "https://assets.nhle.com/mugs/nhl/20262027/TBL/8476453.png" }], defensemen: [], goalies: [] });
+        return json({ forwards: [{ id: 8476453, firstName: { default: "Nikita" }, lastName: { default: "Kucherov" }, headshot: "https://assets.nhle.com/mugs/nhl/20262027/TBL/8476453.png", positionCode: "R", sweaterNumber: 86 }], defensemen: [], goalies: [] });
       }
       if (u.endsWith("/v1/roster/WSH/current")) return json({ forwards: [], defensemen: [], goalies: [] });
       if (u.includes("assets.nhle.com/mugs")) return png([1, 2]);
@@ -139,13 +139,13 @@ describe("syncPlayerPhotos", () => {
       throw new Error(`unexpected ${u}`);
     });
     const { s, saved } = sink([
-      candidate({ player_id: "kuch", full_name: "Nikita Kucherov", league_codes: ["NHL"], team_names: ["Tampa Bay Lightning", "Washington Capitals"] }),
+      candidate({ player_id: "kuch", full_name: "Nikita Kucherov", league_codes: ["NHL"], team_names: ["Tampa Bay Lightning", "Washington Capitals"], teams: [{ id: "t-wsh", name: "Washington Capitals" }, { id: "t-tbl", name: "Tampa Bay Lightning" }] }),
       candidate({ player_id: "lbj", sport_id: "basketball", full_name: "LeBron James", league_codes: ["NBA"] }),
       candidate({ player_id: "moz", full_name: "Sergei Mozyakin", league_codes: ["KHL"] }),
     ]);
     const report = await syncPlayerPhotos(s, { fetchImpl: fetchImpl as unknown as typeof fetch, wikimediaDelay: 0 });
     expect(saved).toEqual([
-      expect.objectContaining({ player_id: "kuch", found: true, photo_source: "nhl", external_player_id: "8476453", photo_url: "https://assets.nhle.com/mugs/nhl/20262027/TBL/8476453.png" }),
+      expect.objectContaining({ player_id: "kuch", found: true, photo_source: "nhl", external_player_id: "8476453", photo_url: "https://assets.nhle.com/mugs/nhl/20262027/TBL/8476453.png", team_id: "t-tbl", position: "R", jersey_number: 86 }),
       expect.objectContaining({ player_id: "lbj", found: true, photo_source: "nba", external_player_id: "2544", photo_url: "https://cdn.nba.com/headshots/nba/latest/1040x760/2544.png" }),
       expect.objectContaining({
         player_id: "moz",

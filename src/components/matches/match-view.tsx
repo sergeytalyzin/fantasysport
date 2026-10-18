@@ -4,15 +4,13 @@ import { ArrowLeft, Clock } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/layout/page-header";
-import { PlayersGrid } from "@/components/picks/board-view";
-import { BoardFilters, type BoardFilterState } from "@/components/sports/board-filters";
-import { Chip, ChipRow } from "@/components/sports/chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMatch } from "@/features/matches/hooks";
 import { useBoard } from "@/features/projections/hooks";
 import { formatCountdown, formatKickoff } from "@/lib/format";
 import { pairColors } from "@/lib/team-color";
 import { LiveCenter } from "@/components/live/live-center";
+import { MatchPlayers } from "./match-players";
 import { MatchStream } from "./match-stream";
 import { TeamBadge } from "./team-badge";
 
@@ -30,8 +28,6 @@ export function MatchView({ matchId }: { matchId: string }) {
   const { data: match, isLoading } = useMatch(matchId);
   const { data: lines = [], isLoading: linesLoading } = useBoard({ sport: null, league: null, matchId });
   const now = useNow();
-  const [filters, setFilters] = useState<BoardFilterState>({ sport: null, league: null, market: null, search: "" });
-  const [teamId, setTeamId] = useState<string | null>(null);
 
   if (isLoading) return <Skeleton className="h-56 rounded-3xl" />;
   if (!match) {
@@ -63,8 +59,6 @@ export function MatchView({ matchId }: { matchId: string }) {
   }
 
   const [home, away] = pairColors(match.home, match.away);
-  // Фильтр по команде имеет смысл, только если провайдер знает команды спортсменов.
-  const teamsKnown = lines.some((l) => l.player.team);
 
   return (
     <div className="space-y-5">
@@ -110,27 +104,14 @@ export function MatchView({ matchId }: { matchId: string }) {
         <EmptyState icon={<Clock className="size-10" />} title="Линий на этот матч нет">
           Букмекеры не выставили линии на игроков этого матча. Расписание и результаты — реальные данные из API.
         </EmptyState>
+      ) : linesLoading ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-56 rounded-3xl" />
+          ))}
+        </div>
       ) : (
-      <>
-          <BoardFilters
-            value={{ ...filters, sport: match.league.sport_id }}
-            onChange={setFilters}
-            show={{ sports: false, markets: true, search: true }}
-          />
-          {teamsKnown ? (
-            <ChipRow>
-              <Chip active={!teamId} onClick={() => setTeamId(null)} className="h-8 text-xs">
-                Обе команды
-              </Chip>
-              {[match.home, match.away].map((t) => (
-                <Chip key={t.id} active={teamId === t.id} onClick={() => setTeamId(t.id)} className="h-8 text-xs">
-                  {t.short_name}
-                </Chip>
-              ))}
-            </ChipRow>
-          ) : null}
-          <PlayersGrid matchId={matchId} market={filters.market} search={filters.search} teamId={teamId} />
-      </>
+        <MatchPlayers match={match} lines={lines} />
       )}
     </div>
   );

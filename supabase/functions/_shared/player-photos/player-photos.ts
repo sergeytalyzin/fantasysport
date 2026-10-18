@@ -25,6 +25,8 @@ export interface PhotoCandidate {
   league_codes: string[];
   /** Команды этих матчей (английские названия, если известны) — спортсмен играет за одну из них. */
   team_names: string[];
+  /** Те же команды с id — чтобы привязать спортсмена к его команде. */
+  teams?: { id: string; name: string }[] | null;
   photo_url: string | null;
 }
 
@@ -39,6 +41,10 @@ export interface PhotoInfo {
   photo_license_url: string | null;
   /** Страница файла с полной информацией об авторстве. */
   photo_page_url: string | null;
+  /** Профиль из официального ростера лиги (НХЛ): команда, амплуа (C/L/R/D/G), номер. */
+  team_id?: string | null;
+  position?: string | null;
+  jersey_number?: number | null;
 }
 
 /**
@@ -108,6 +114,8 @@ interface NhlRosterPlayer {
   firstName: { default: string };
   lastName: { default: string };
   headshot?: string;
+  positionCode?: string;
+  sweaterNumber?: number;
 }
 
 const NHL_RIGHTS = "© NHL — официальное фото лиги";
@@ -137,24 +145,38 @@ class NhlSource {
     return this.rosters.get(abbrev)!;
   }
 
+  /** Наша команда матча, соответствующая аббревиатуре NHL. */
+  private async teamId(c: PhotoCandidate, abbrev: string | undefined): Promise<string | null> {
+    if (!abbrev) return null;
+    const teams = await this.teams();
+    return c.teams?.find((t) => teams.get(normalizeName(t.name)) === abbrev)?.id ?? null;
+  }
+
   /** Поиск в ростерах команд матча: имя должно совпасть ровно у одного игрока. */
   async fromRosters(c: PhotoCandidate): Promise<PhotoInfo | null> {
     const teams = await this.teams();
     const abbrevs = [...new Set(c.team_names.map((n) => teams.get(normalizeName(n))).filter((a): a is string => Boolean(a)))];
     if (abbrevs.length === 0) return null;
-    const players = (await Promise.all(abbrevs.map((a) => this.roster(a)))).flat();
+    const players = (
+      await Promise.all(abbrevs.map(async (a) => (await this.roster(a)).map((p) => ({ ...p, abbrev: a }))))
+    ).flat();
     const found = players.filter((p) => sameName(`${p.firstName.default} ${p.lastName.default}`, c.full_name));
     if (found.length !== 1 || !found[0].headshot) return null;
-    return this.info(found[0].id, found[0].headshot);
+    const p = found[0];
+    return this.info(p.id, p.headshot!, await this.teamId(c, p.abbrev), p.positionCode, p.sweaterNumber);
   }
 
   /** По NHL ID (например, из Wikidata P3522). */
-  async fromId(id: string): Promise<PhotoInfo | null> {
-    const landing = await getJson<{ headshot?: string }>(this.fetchImpl, `https://api-web.nhle.com/v1/player/${id}/landing`);
-    return landing.headshot ? this.info(Number(id), landing.headshot) : null;
+  async fromId(c: PhotoCandidate, id: string): Promise<PhotoInfo | null> {
+    const landing = await getJson<{ headshot?: string; position?: string; sweaterNumber?: number; currentTeamAbbrev?: string }>(
+      this.fetchImpl,
+      `https://api-web.nhle.com/v1/player/${id}/landing`,
+    );
+    if (!landing.headshot) return null;
+    return this.info(Number(id), landing.headshot, await this.teamId(c, landing.currentTeamAbbrev), landing.position, landing.sweaterNumber);
   }
 
-  private info(id: number, headshot: string): PhotoInfo {
+  private info(id: number, headshot: string, teamId: string | null, position?: string, number?: number): PhotoInfo {
     return {
       photo_url: headshot,
       photo_source: "nhl",
@@ -163,6 +185,9 @@ class NhlSource {
       photo_author: null,
       photo_license_url: null,
       photo_page_url: `https://www.nhl.com/player/${id}`,
+      team_id: teamId,
+      position: position ?? null,
+      jersey_number: number ?? null,
     };
   }
 }
@@ -391,7 +416,7 @@ export async function syncPlayerPhotos(
     // 2. Официальный ID лиги из Wikidata.
     const nhlId = firstString(athlete, "P3522");
     if (c.sport_id === "hockey" && nhlId) {
-      const fromNhl = await verified(await nhl.fromId(nhlId));
+      const fromNhl = await verified(await nhl.fromId(c, nhlId));
       if (fromNhl) return fromNhl;
     }
     const nbaId = firstString(athlete, "P3647");

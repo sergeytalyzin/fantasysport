@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   currentMskPeriod,
   formatKickoff,
-  formatKickoffShort,
   formatMatchDay,
   formatCountdown,
   formatLine,
@@ -40,13 +39,6 @@ describe("format", () => {
     expect(formatKickoff("2026-10-17T16:30:00Z", now)).toBe("Сегодня, 19:30");
     expect(formatKickoff("2026-10-18T00:00:00Z", now)).toBe("Завтра, 03:00");
     expect(formatKickoff("2026-10-20T14:00:00Z", now)).toBe("20 октября, 17:00");
-  });
-
-  it("formatKickoffShort", () => {
-    const now = new Date("2026-10-17T10:00:00Z");
-    expect(formatKickoffShort("2026-10-17T16:30:00Z", now)).toBe("19:30");
-    expect(formatKickoffShort("2026-10-18T00:00:00Z", now)).toBe("завтра 03:00");
-    expect(formatKickoffShort("2026-10-20T14:00:00Z", now)).toBe("20.10 17:00");
   });
 
   it("formatMatchDay и formatCountdown", () => {

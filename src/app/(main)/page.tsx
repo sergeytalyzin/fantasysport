@@ -3,7 +3,6 @@ import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import { CouponAside, CouponMobileBar } from "@/components/picks/coupon-dock";
 import { HomeView } from "@/components/picks/home-view";
-import { MonthlyPrizeBanner } from "@/components/picks/monthly-prize-banner";
 
 export default function HomePage() {
   return (
@@ -17,7 +16,6 @@ export default function HomePage() {
         >
           <BookOpen className="size-4" /> Как играть
         </Link>
-        <MonthlyPrizeBanner />
         <HomeView />
       </div>
       {/* Лидеры месяца зависят от текущей даты (МСК) — вычисляется при запросе. */}

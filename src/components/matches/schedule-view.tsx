@@ -10,14 +10,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { type ScheduleDay, type ScheduleItem, useSchedule } from "@/features/matches/hooks";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { errorMessage } from "@/lib/errors";
+import { plural } from "@/lib/format";
+import type { SportId } from "@/types/domain";
 import { MatchRow } from "./match-cards";
 
 const DAYS: { value: ScheduleDay; label: string }[] = [
-  { value: "upcoming", label: "Ближайшие 3 дня" },
-  { value: "live", label: "Сейчас" },
   { value: "today", label: "Сегодня" },
   { value: "tomorrow", label: "Завтра" },
-  { value: "after", label: "Послезавтра" },
+  { value: "upcoming", label: "Ближайшие дни" },
 ];
 
 const PAGE = 20;
@@ -28,7 +28,8 @@ interface Group {
   title: string;
   country: string | null;
   lines: number;
-  sort: number;
+  /** Порядок популярных лиг; у киберспорта — null (по времени начала). */
+  rank: number | null;
   matches: ScheduleItem[];
 }
 
@@ -63,9 +64,9 @@ function LeagueGroup({ group }: { group: Group }) {
   );
 }
 
-/** Все реальные события (одного или всех видов спорта), сгруппированные по турнирам. */
-export function ScheduleView({ sport }: { sport: string | null }) {
-  const [day, setDay] = useState<ScheduleDay>("upcoming");
+/** Матчи популярных лиг вида спорта, сгруппированные по турнирам. */
+export function ScheduleView({ sport }: { sport: SportId }) {
+  const [day, setDay] = useState<ScheduleDay>("today");
   const [input, setInput] = useState("");
   const [limit, setLimit] = useState(PAGE);
   const search = useDebouncedValue(input.trim().toLowerCase(), 250);
@@ -75,24 +76,35 @@ export function ScheduleView({ sport }: { sport: string | null }) {
     const map = new Map<string, Group>();
     for (const m of data ?? []) {
       if (search) {
-        const haystack = `${m.home.name} ${m.away.name} ${m.league.name} ${m.league.country ?? ""}`.toLowerCase();
+        const haystack = [
+          m.home.name,
+          m.away.name,
+          m.league.name,
+          m.league.display_name,
+          m.league.country,
+          m.league.display_country,
+          ...m.players,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         if (!haystack.includes(search)) continue;
       }
       const g = map.get(m.league.code) ?? {
         key: m.league.code,
-        title: m.league.name,
-        country: m.league.country,
+        title: m.league.display_name ?? m.league.name,
+        country: m.league.display_country ?? m.league.country,
         lines: 0,
-        sort: m.league.sort_order,
+        rank: m.league.featured_rank,
         matches: [],
       };
       g.matches.push(m);
       g.lines += m.lines;
       map.set(m.league.code, g);
     }
-    // Сначала турниры с линиями, затем известные лиги, затем по числу матчей.
+    // Лиги — в заданном порядке (featured_rank); турниры без порядка — по ближайшему матчу.
     return [...map.values()].sort(
-      (a, b) => Number(b.lines > 0) - Number(a.lines > 0) || a.sort - b.sort || b.matches.length - a.matches.length,
+      (a, b) => (a.rank ?? 99) - (b.rank ?? 99) || a.matches[0].starts_at.localeCompare(b.matches[0].starts_at),
     );
   }, [data, search]);
 
@@ -122,7 +134,7 @@ export function ScheduleView({ sport }: { sport: string | null }) {
             setInput(e.target.value);
             setLimit(PAGE);
           }}
-          placeholder="Команда, турнир или страна"
+          placeholder="Команда, турнир, страна, игрок"
           className="pl-10"
           aria-label="Поиск по событиям"
           enterKeyHint="search"
@@ -138,13 +150,14 @@ export function ScheduleView({ sport }: { sport: string | null }) {
           ))}
         </div>
       ) : groups.length === 0 ? (
-        <EmptyState icon={<CalendarX2 className="size-10" />} title={day === "live" ? "Сейчас матчей нет" : "Событий нет"}>
-          {search ? "Попробуйте изменить запрос." : "Источник данных не вернул матчи на этот период."}
+        <EmptyState icon={<CalendarX2 className="size-10" />} title="Матчей нет">
+          {search ? "Попробуйте изменить запрос." : "В популярных лигах на этот период матчей нет."}
         </EmptyState>
       ) : (
         <>
           <p className="text-xs text-muted-foreground">
-            {total} событий в {groups.length} турнирах
+            {total} {plural(total, ["матч", "матча", "матчей"])} · {groups.length}{" "}
+            {plural(groups.length, ["турнир", "турнира", "турниров"])}
           </p>
           <div className="space-y-3">
             {groups.slice(0, limit).map((g) => (

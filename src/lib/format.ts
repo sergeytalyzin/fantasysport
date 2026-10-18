@@ -75,16 +75,6 @@ export function formatKickoff(iso: string, now: Date = new Date()): string {
 
 const shortDateFormatter = new Intl.DateTimeFormat("ru-RU", { timeZone: TIME_ZONE, day: "2-digit", month: "2-digit" });
 
-/** Компактно для карточки: «19:30», «завтра 03:00», «20.10 17:00» (МСК). */
-export function formatKickoffShort(iso: string, now: Date = new Date()): string {
-  const date = new Date(iso);
-  const day = dayKeyFormatter.format(date);
-  const time = timeFormatter.format(date);
-  if (day === dayKeyFormatter.format(now)) return time;
-  if (day === dayKeyFormatter.format(new Date(now.getTime() + 86_400_000))) return `завтра ${time}`;
-  return `${shortDateFormatter.format(date)} ${time}`;
-}
-
 const weekdayFormatter = new Intl.DateTimeFormat("ru-RU", { timeZone: TIME_ZONE, weekday: "long", day: "numeric", month: "long" });
 
 /** Ключ дня по Москве (для группировки): «2026-10-17». */

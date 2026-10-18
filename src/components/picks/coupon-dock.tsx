@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronUp, Sparkles, Ticket } from "lucide-react";
-import { LeadersWidget } from "@/components/leaderboard/leaders-widget";
+import { ForecastersRating } from "@/components/leaderboard/forecasters-rating";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { findMultiplier } from "@/features/picks/coupon-logic";
 import { usePayoutRules } from "@/features/sports/hooks";
@@ -9,13 +9,13 @@ import { formatMultiplier, plural } from "@/lib/format";
 import { useCouponStore } from "@/stores/coupon-store";
 import { CouponPanel } from "./coupon-panel";
 
-/** Десктоп: закреплённая панель справа — купон, а пока он пуст, лидеры рейтинга. */
+/** Десктоп: закреплённая панель справа — купон, а пока он пуст, рейтинг прогнозистов. */
 export function CouponAside() {
   const count = useCouponStore((s) => s.picks.length);
   if (count === 0) {
     return (
       <aside className="sticky top-20 hidden max-h-[calc(100dvh-6rem)] w-[23rem] shrink-0 space-y-3 overflow-y-auto lg:block">
-        <LeadersWidget />
+        <ForecastersRating />
         <p className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
           <Sparkles className="size-3.5 shrink-0 text-primary" />
           Выберите от 2 до 6 прогнозов «Больше» или «Меньше» — купон появится здесь.
