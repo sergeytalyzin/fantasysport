@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import type { StatLine } from "../../supabase/functions/_shared/house-lines/engine.ts";
 import { type HouseSink, syncHouseLines } from "../../supabase/functions/_shared/house-lines/sync-house.ts";
 import { ApiFootballResultsProvider } from "../../supabase/functions/_shared/sports-providers/results/apifootball-results-provider.ts";
@@ -15,7 +15,7 @@ let kickoff = new Date(NOW.getTime() + 3 * 3600_000).toISOString();
 // Ответы API-Football в реальной структуре (проверено probe-скриптами).
 const fx = (id: number, date: string, status: string, goals: [number | null, number | null] = [null, null]) => ({
   fixture: { id, date, status: { short: status } },
-  league: { id: 235 },
+  league: { id: 235, season: 2025 },
   teams: { home: { id: 10, name: "Zenit" }, away: { id: 20, name: "Spartak Moscow" } },
   goals: { home: goals[0], away: goals[1] },
 });
@@ -31,13 +31,20 @@ const season = (id: number, name: string, apps: number, minutes: number, shots: 
 let resultReady = false;
 const routes = (): Record<string, unknown> => ({
   [`fixtures?date=${day(-1)}`]: [fx(900, `${day(-1)}T16:00:00+00:00`, "FT", [2, 1]), { ...fx(950, `${day(-1)}T16:00:00+00:00`, "FT"), league: { id: 39 } }],
-  [`fixtures?date=${kickoff.slice(0, 10)}`]: [fx(901, kickoff, resultReady ? "FT" : "NS", resultReady ? [1, 0] : [null, null])],
+  [`fixtures?date=${kickoff.slice(0, 10)}`]: [
+    fx(901, kickoff, resultReady ? "FT" : "NS", resultReady ? [1, 0] : [null, null]),
+    // Матча нет в расписании — линии на него не выставляются, дубль не создаётся.
+    { ...fx(902, kickoff, "NS"), teams: { home: { id: 30, name: "Rostov" }, away: { id: 40, name: "Akhmat Grozny" } } },
+  ],
   ...(kickoff.slice(0, 10) === day(0) ? {} : { [`fixtures?date=${day(0)}`]: [] }),
   [`fixtures?date=${day(1)}`]: [],
   "fixtures/players?fixture=900": [
     { team: { id: 10, name: "Zenit" }, players: [line(101, "M. Gromov", 90, 4, 2, 35, 1), line(102, "O. Belov", 90, 1, 0, 60), line(103, "Y. Titov", 10, 0, 0, 5)] },
     { team: { id: 20, name: "Spartak Moscow" }, players: [line(201, "D. Ryabov", 90, 3, 1, 30), line(202, "V. Kotov", 85, 0, 0, 55)] },
   ],
+  // Текущий сезон: всего 2 матча — меньше порога, форма берётся из прошлого сезона.
+  "players?team=10&season=2025&page=1": { paging: { current: 1, total: 1 }, response: [season(101, "M. Gromov", 2, 180, 20, 10, 40, 4)] },
+  "players?team=20&season=2025&page=1": { paging: { current: 1, total: 1 }, response: [] },
   "players?team=10&season=2024&page=1": {
     paging: { current: 1, total: 1 },
     response: [season(101, "M. Gromov", 25, 2100, 75, 30, 800, 10), season(102, "O. Belov", 28, 2500, 14, 4, 1650, 0)],
@@ -133,11 +140,46 @@ const sink: HouseSink = {
   async setProgress(key, value) {
     store.set(key, value);
   },
-  async ingestSlate(source, payload) {
-    const { rows } = await db.pool.query(`select public.ingest_slate($1, $2::jsonb) as r`, [source, JSON.stringify(payload)]);
+  async scheduleMatches(leagueCode, from, to) {
+    const { rows } = await db.pool.query(
+      `select m.id, m.starts_at,
+              jsonb_build_object('id', h.id, 'name', coalesce(h.name_en, h.name), 'abbr', coalesce(h.abbr_en, h.abbr)) as home,
+              jsonb_build_object('id', a.id, 'name', coalesce(a.name_en, a.name), 'abbr', coalesce(a.abbr_en, a.abbr)) as away
+         from public.matches m
+         join public.leagues l on l.id = m.league_id
+         join public.teams h on h.id = m.home_team_id
+         join public.teams a on a.id = m.away_team_id
+        where l.code = $1 and m.starts_at between $2 and $3`,
+      [leagueCode, from, to],
+    );
+    return rows.map((r) => ({ ...r, starts_at: new Date(r.starts_at).toISOString() }));
+  },
+  async ingestHouseLines(source, payload) {
+    const { rows } = await db.pool.query(`select public.ingest_house_lines($1, $2::jsonb) as r`, [source, JSON.stringify(payload)]);
     return rows[0].r;
   },
 };
+
+// Матч из расписания (как его загружает OddsPapi): русские названия, английские — в name_en.
+let scheduleMatchId = "";
+beforeAll(async () => {
+  const { rows } = await db.pool.query(
+    `with t as (
+       insert into public.teams (sport_id, name, short_name, abbr, name_en, source, external_id) values
+         ('football', 'Зенит Санкт-Петербург', 'Зенит', 'ЗЕН', 'FK Zenit Saint Petersburg', 'oddspapi', 'op-team-1'),
+         ('football', 'Спартак Москва', 'Спартак', 'СПА', 'FC Spartak Moscow', 'oddspapi', 'op-team-2')
+       returning id, external_id
+     )
+     insert into public.matches (league_id, home_team_id, away_team_id, starts_at, status, source, external_id)
+     select (select id from public.leagues where code = 'RPL'),
+            (select id from t where external_id = 'op-team-1'),
+            (select id from t where external_id = 'op-team-2'),
+            $1, 'SCHEDULED', 'oddspapi', 'op-match-1'
+     returning id`,
+    [kickoff],
+  );
+  scheduleMatchId = rows[0].id;
+});
 
 const resultsSink: ExternalResultsSink = {
   async awaiting(codes, limit, sports) {
@@ -153,13 +195,15 @@ const resultsSink: ExternalResultsSink = {
 describe("линии PICKUP для РПЛ", () => {
   it("копит историю, грузит прошлый сезон и выставляет линии игрокам основы", async () => {
     const report = await syncHouseLines(af, sink, { leagueCode: "RPL", leagueId: "235", now: NOW });
-    expect(report).toMatchObject({ history_fixtures: 1, history_rows: 5, prior_pages: 2, matches: 1, prior_errors: [] });
+    expect(report).toMatchObject({ history_fixtures: 1, history_rows: 5, matches: 1, unmatched: 1, prior_errors: [] });
+    expect(report.prior_pages).toBe(4);
     expect(report.projections).toBeGreaterThan(0);
     expect(report.complete).toBe(true);
 
     const { rows } = await db.pool.query(
-      `select pl.full_name, mk.code, p.line::float as line, m.source
+      `select pl.full_name, mk.code, p.line::float as line, p.source, p.match_id, t.name as team
          from public.projections p
+         join public.teams t on t.id = (select team_id from public.players where id = p.player_id)
          join public.players pl on pl.id = p.player_id
          join public.markets mk on mk.id = p.market_id
          join public.matches m on m.id = p.match_id
@@ -170,6 +214,11 @@ describe("линии PICKUP для РПЛ", () => {
     expect(names.has("S. Bench")).toBe(false);
     expect(names.has("K. Keeper")).toBe(false);
     expect(rows.every((r) => r.source === "pickup")).toBe(true);
+    // Линии прикреплены к матчу из расписания, игроки — к его командам; новых матчей нет.
+    expect(rows.every((r) => r.match_id === scheduleMatchId)).toBe(true);
+    expect(rows.find((r) => r.full_name === "M. Gromov")?.team).toBe("Зенит Санкт-Петербург");
+    expect(rows.find((r) => r.full_name === "D. Ryabov")?.team).toBe("Спартак Москва");
+    expect((await db.pool.query(`select count(*)::int as n from public.matches`)).rows[0].n).toBe(1);
     // Громов: 0,25 × 4 (форма, 1 матч) + 0,75 × 3,0 (сезон) = 3,25 → ближайшее x,5 = 3,5.
     expect(rows.find((r) => r.full_name === "M. Gromov" && r.code === "shots")?.line).toBe(3.5);
     // Белов: 0,25 × 60 + 0,75 × 1650/28 ≈ 59,2 → 59,5.
@@ -189,6 +238,17 @@ describe("линии PICKUP для РПЛ", () => {
     expect(calls.length).toBe(before);
   });
 
+  it("при пересчёте линии игроков, выпавших из отбора, приостанавливаются", async () => {
+    const before = (await db.pool.query(`select count(*)::int as n from public.projections where status = 'OPEN'`)).rows[0].n;
+    const report = await syncHouseLines(af, sink, { leagueCode: "RPL", leagueId: "235", now: NOW, maxPerTeam: 1 });
+    expect(report.suspended).toBeGreaterThan(0);
+    const open = (await db.pool.query(`select count(*)::int as n from public.projections where status = 'OPEN'`)).rows[0].n;
+    expect(open).toBe(before - report.suspended);
+    // Обратно: с прежним лимитом линии снова открываются.
+    await syncHouseLines(af, sink, { leagueCode: "RPL", leagueId: "235", now: NOW });
+    expect((await db.pool.query(`select count(*)::int as n from public.projections where status = 'OPEN'`)).rows[0].n).toBe(before);
+  });
+
   it("купон на линии PICKUP рассчитывается по результатам API-Football", async () => {
     const user = await createUser(db.pool);
     const { rows } = await db.pool.query(
@@ -204,9 +264,9 @@ describe("линии PICKUP для РПЛ", () => {
 
     // Матч начался минуту назад — и в базе, и у провайдера.
     kickoff = new Date(Date.now() - 60_000).toISOString();
-    await db.pool.query(`update public.matches set starts_at = $1 where source = 'pickup'`, [kickoff]);
+    await db.pool.query(`update public.matches set starts_at = $1 where id = $2`, [kickoff, scheduleMatchId]);
     resultReady = true;
-    store.delete(`apifootball:fixtures:${kickoff.slice(0, 10)}`);
+    store.delete(`apifootball:fixtures:${kickoff.slice(0, 10)}:235`);
     const report = await syncExternalResults([af], resultsSink);
     expect(report).toMatchObject({ confirmed: 1 });
 

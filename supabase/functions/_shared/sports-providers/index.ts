@@ -18,6 +18,8 @@ export {
 } from "./sync.ts";
 export { ApiFootballResultsProvider, type ApiFootballLeague } from "./results/apifootball-results-provider.ts";
 export { NhlResultsProvider } from "./results/nhl-results-provider.ts";
+export { BallDontLieNhlResultsProvider } from "./results/balldontlie-nhl-results-provider.ts";
+export { BallDontLieNbaResultsProvider } from "./results/balldontlie-nba-results-provider.ts";
 export { type ExternalResultsSink, syncExternalResults } from "./results/sync-results.ts";
 export type { AwaitingMatch, ResultsProvider } from "./results/types.ts";
 export { OpenDotaResultsProvider } from "./results/opendota-results-provider.ts";

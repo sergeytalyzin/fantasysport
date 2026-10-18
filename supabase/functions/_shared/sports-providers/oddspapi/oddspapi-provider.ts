@@ -444,6 +444,18 @@ export class OddsPapiProvider implements SportsDataProvider {
     return { leagues: [...leagues.values()], teams: [...teams.values()], matches };
   }
 
+  /**
+   * Английские названия всех участников вида спорта (GET /v4/participants?sportId&language=en):
+   * { "3409": "Chicago Bulls", … }. Один запрос на вид спорта; расписание загружается на русском,
+   * а сопоставление с источниками статистики идёт по английским названиям.
+   */
+  async participantNamesEn(opSportId: string): Promise<{ external_id: string; name_en: string }[]> {
+    const data = await this.request<Record<string, string>>("participants", { sportId: opSportId, language: "en" });
+    return Object.entries(data ?? {})
+      .filter(([, name]) => typeof name === "string" && name.trim())
+      .map(([id, name]) => ({ external_id: `oddspapi:participant:${id}`, name_en: name.trim() }));
+  }
+
   getTeamNamesEn(): { external_id: string; name_en: string; abbr_en: string | null }[] {
     return [...this.teamNamesEn.entries()].map(([external_id, v]) => ({ external_id, ...v }));
   }

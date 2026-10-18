@@ -35,19 +35,23 @@ function ForecasterRow({ row, me = false }: { row: RowData; me?: boolean }) {
   return (
     <li
       className={cn(
-        "relative flex items-center gap-3 overflow-hidden rounded-2xl border bg-surface-2/70 py-2.5 pl-3 pr-2.5 transition-colors",
+        "flex items-center gap-2.5 rounded-lg border bg-surface-2/70 py-2.5 pl-2.5 pr-2.5 transition-colors",
         me ? "border-primary/50 bg-primary/[0.07]" : "border-white/[0.07] hover:border-white/15",
       )}
     >
-      <span
-        className={cn(
-          "numeric absolute left-0 top-0 flex size-5 items-center justify-center rounded-br-lg text-[0.65rem] font-extrabold",
-          RANK_STYLE[row.rank] ?? "bg-surface-3 text-muted-foreground",
-        )}
-      >
-        {row.rank}
+      {/* Место — значком на углу аватара, как Badge в antd. */}
+      <span className="relative shrink-0">
+        <UserAvatar nickname={row.nickname} url={row.avatarUrl} className="size-11" />
+        <span
+          className={cn(
+            "numeric absolute -left-1 -top-1 flex size-5 items-center justify-center rounded-full text-[0.65rem] font-extrabold leading-none shadow ring-2 ring-surface-1",
+            RANK_STYLE[row.rank] ?? "bg-surface-3 text-foreground",
+          )}
+          aria-label={`${row.rank} место`}
+        >
+          {row.rank}
+        </span>
       </span>
-      <UserAvatar nickname={row.nickname} url={row.avatarUrl} className="ml-2 size-11 shrink-0" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">
           {row.nickname}
@@ -57,9 +61,7 @@ function ForecasterRow({ row, me = false }: { row: RowData; me?: boolean }) {
           <span className="text-muted-foreground">
             {row.lineups} {plural(row.lineups, ["прогноз", "прогноза", "прогнозов"])}
           </span>
-          <span className={cn("numeric font-bold", row.roi > 0 ? "text-over" : row.roi < 0 ? "text-under" : "text-muted-foreground")}>
-            {roiFormatter.format(row.roi)}% ROI
-          </span>
+   
         </p>
       </div>
       <span

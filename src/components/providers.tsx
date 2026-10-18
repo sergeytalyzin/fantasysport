@@ -20,8 +20,14 @@ export function Providers({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void useCouponStore.persist.rehydrate();
-    if ("serviceWorker" in navigator && process.env.NODE_ENV === "production") {
+    if (!("serviceWorker" in navigator)) return;
+    if (process.env.NODE_ENV === "production") {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
+    } else {
+      // В dev имена чанков не меняются между правками: оставшийся от production-запуска
+      // service worker отдавал бы старый JS из кэша. Удаляем его и его кэш.
+      void navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => void r.unregister()));
+      if ("caches" in window) void caches.keys().then((keys) => keys.forEach((k) => void caches.delete(k)));
     }
   }, []);
 

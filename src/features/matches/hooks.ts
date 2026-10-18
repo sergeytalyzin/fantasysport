@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { unwrap } from "@/lib/errors";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { ESPORTS_SPORTS, FEATURED_ESPORTS_PATTERN } from "@/lib/featured";
@@ -37,8 +37,11 @@ export function useMatch(id: string) {
   });
 }
 
-/** «today»/«tomorrow» — московские сутки; «upcoming» — идущие и предстоящие матчи сегодня и в два следующих дня. */
-export type ScheduleDay = "today" | "tomorrow" | "upcoming";
+/**
+ * «today»/«tomorrow» — московские сутки; «upcoming» и «all» (поиск) — сегодня и два следующих дня.
+ * Во всех случаях — только ещё не начавшиеся матчи.
+ */
+export type ScheduleDay = "today" | "tomorrow" | "upcoming" | "all";
 
 export interface ScheduleItem extends MatchListItem {
   league: MatchListItem["league"] & {
@@ -72,11 +75,27 @@ type ScheduleRow = Omit<ScheduleItem, "lines" | "players"> & { projections?: { i
  * и именами спортсменов, на которых они выставлены.
  */
 export function useSchedule(sport: SportId, day: ScheduleDay) {
-  return useQuery({
+  return useQuery(scheduleQuery(sport, day));
+}
+
+/** Матчи популярных лиг нескольких видов спорта (поиск по всей линии). */
+export function useSchedules(sports: SportId[], day: ScheduleDay, enabled = true) {
+  return useQueries({
+    queries: sports.map((sport) => ({ ...scheduleQuery(sport, day), enabled })),
+    combine: (results) => ({
+      data: results.flatMap((r) => r.data ?? []),
+      isLoading: results.some((r) => r.isLoading),
+      error: results.find((r) => r.error)?.error ?? null,
+    }),
+  });
+}
+
+function scheduleQuery(sport: SportId, day: ScheduleDay) {
+  return {
     queryKey: ["schedule", sport, day],
     refetchInterval: 120_000,
-    placeholderData: (previous) => previous,
-    queryFn: async () => {
+    placeholderData: (previous: ScheduleItem[] | undefined) => previous,
+    queryFn: async (): Promise<ScheduleItem[]> => {
       const page = async (offset: number) => {
         let query = getSupabaseBrowserClient()
           .from("matches")
@@ -96,14 +115,14 @@ export function useSchedule(sport: SportId, day: ScheduleDay) {
         query = ESPORTS_SPORTS.includes(sport)
           ? query.filter("league.name", "imatch", FEATURED_ESPORTS_PATTERN)
           : query.not("league.featured_rank", "is", null);
-        if (day === "upcoming") {
-          // Начавшиеся до 3 часов назад могут ещё идти.
-          const from = new Date(Math.floor(Date.now() / 60_000) * 60_000 - 3 * 3600_000).toISOString();
-          query = query.gte("starts_at", from).lt("starts_at", mskDayRange(2)[1]).neq("status", "FINISHED");
-        } else {
-          const [from, to] = mskDayRange(day === "today" ? 0 : 1);
-          query = query.gte("starts_at", from).lt("starts_at", to);
-        }
+        // В линии только матчи, которые ещё не начались: на начавшиеся прогноз не принимается.
+        const now = new Date(Math.floor(Date.now() / 60_000) * 60_000).toISOString();
+        const [from, to] =
+          day === "today" ? mskDayRange(0) : day === "tomorrow" ? mskDayRange(1) : [mskDayRange(0)[0], mskDayRange(2)[1]];
+        query = query
+          .gt("starts_at", from > now ? from : now)
+          .lt("starts_at", to)
+          .eq("status", "SCHEDULED");
         return unwrap(await query) as unknown as ScheduleRow[];
       };
       // PostgREST отдаёт не больше 1000 строк за запрос.
@@ -119,5 +138,5 @@ export function useSchedule(sport: SportId, day: ScheduleDay) {
         players: [...new Set(projections.map((p) => p.player?.full_name).filter((n): n is string => Boolean(n)))],
       })) as ScheduleItem[];
     },
-  });
+  };
 }

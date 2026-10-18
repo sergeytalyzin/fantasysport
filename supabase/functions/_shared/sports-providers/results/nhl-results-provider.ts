@@ -3,6 +3,7 @@
 //   GET /v1/score/{YYYY-MM-DD}                 — игры дня (gameState, команды)
 //   GET /v1/gamecenter/{id}/boxscore           — playerByGameStats: forwards/defense/goalies
 //   GET /v1/gamecenter/{id}/play-by-play       — rosterSpots: полные имена
+//   GET /v1/roster/{TEAM}/current              — состав команды (для «не играл»)
 // gameState "OFF" — результат официальный (до этого "LIVE"/"CRIT"/"FINAL").
 
 import { ProviderHttpError, type LeagueCode } from "../types.ts";
@@ -39,9 +40,15 @@ interface NhlGoalie {
 interface NhlBoxscore {
   id: number;
   gameState: string;
-  homeTeam: { score?: number };
-  awayTeam: { score?: number };
+  homeTeam: { score?: number; abbrev?: string };
+  awayTeam: { score?: number; abbrev?: string };
   playerByGameStats?: Record<"homeTeam" | "awayTeam", { forwards: NhlSkater[]; defense: NhlSkater[]; goalies: NhlGoalie[] }>;
+}
+
+interface NhlRoster {
+  forwards?: { id: number; firstName: NhlName; lastName: NhlName }[];
+  defensemen?: { id: number; firstName: NhlName; lastName: NhlName }[];
+  goalies?: { id: number; firstName: NhlName; lastName: NhlName }[];
 }
 
 interface NhlPlayByPlay {
@@ -112,9 +119,29 @@ export class NhlResultsProvider implements ResultsProvider {
       }
     }
 
+    const final = FINAL_STATES.has(box.gameState);
+    if (final) {
+      // Игрок из состава команды, которого нет в протоколе завершённой игры, не играл
+      // (запас, травма). Без этого линия на него ждала бы ручной проверки.
+      const inGame = new Set(names.keys());
+      for (const abbrev of [box.homeTeam.abbrev, box.awayTeam.abbrev]) {
+        if (!abbrev) continue;
+        const roster = await this.get<NhlRoster>(`roster/${abbrev}/current`).catch(() => null);
+        for (const r of [...(roster?.forwards ?? []), ...(roster?.defensemen ?? []), ...(roster?.goalies ?? [])]) {
+          if (inGame.has(r.id)) continue;
+          inGame.add(r.id);
+          players.push({
+            fullName: `${r.firstName.default} ${r.lastName.default}`,
+            didPlay: false,
+            stats: { goals: 0, assists: 0, shots_on_goal: 0, saves: 0 },
+          });
+        }
+      }
+    }
+
     return {
       gameId: String(box.id),
-      final: FINAL_STATES.has(box.gameState),
+      final,
       homeScore: box.homeTeam.score ?? null,
       awayScore: box.awayTeam.score ?? null,
       players,

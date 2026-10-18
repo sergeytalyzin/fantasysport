@@ -12,7 +12,7 @@ import { EventFeed, Leaders, Scoreboard } from "./live-parts";
 
 const SOURCE: Record<string, string> = {
   nhl: "Данные НХЛ · обновление каждые ~15 с",
-  apifootball: "Данные API-Football · обновление раз в ~3 мин",
+  apifootball: "Данные API-Football · обновление раз в минуту",
 };
 
 const REASONS: Record<string, string> = {

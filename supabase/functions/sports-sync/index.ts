@@ -5,6 +5,8 @@
 //   {"action": "lines" | "results"}          — только линии / только результаты
 //   {"action": "logos"}                      — логотипы команд (Cron, каждые 10 минут)
 //   {"action": "photos"}                     — фото спортсменов (Cron, каждые 10 минут)
+//   {"action": "nhl_lines"}                  — линии PICKUP на матчи НХЛ (BALLDONTLIE, Cron раз в 3 часа)
+//   {"action": "nba_lines"}                  — линии PICKUP на матчи НБА (BALLDONTLIE, Cron раз в 3 часа)
 //   {"action": "status"}                     — состояние провайдеров
 //
 // Доступ: заголовок x-cron-secret (Cron) или JWT администратора.
@@ -13,10 +15,14 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { StatLine } from "../_shared/house-lines/engine.ts";
 import { HOUSE_SOURCE, type HouseSink, syncHouseLines } from "../_shared/house-lines/sync-house.ts";
+import { syncNbaHouseLines } from "../_shared/house-lines/sync-nba-house.ts";
+import { syncNhlHouseLines } from "../_shared/house-lines/sync-nhl-house.ts";
 import {
   type ApiFootballLeague,
   ApiFootballResultsProvider,
   type AwaitingMatch,
+  BallDontLieNbaResultsProvider,
+  BallDontLieNhlResultsProvider,
   type ExternalResultsSink,
   type LeagueCode,
   NhlResultsProvider,
@@ -153,11 +159,19 @@ async function createProviders(db: SupabaseClient): Promise<SportsDataProvider[]
 
 /**
  * Провайдеры статистики для матчей, линии которых пришли от других источников.
- * RESULTS_PROVIDERS=nhl,apifootball,opendota (по умолчанию nhl,opendota — бесплатно, без ключа).
+ * RESULTS_PROVIDERS=balldontlie,nhl,apifootball,opendota (по умолчанию nhl,opendota — бесплатно, без ключа).
+ * Лига достаётся первому провайдеру в списке: balldontlie (лицензированные данные НХЛ)
+ * указывается раньше nhl (неофициальный API лиги).
  */
 async function createResultsProviders(db: SupabaseClient): Promise<ResultsProvider[]> {
   const enabled = (Deno.env.get("RESULTS_PROVIDERS") ?? "nhl,opendota").split(",").map((s) => s.trim()).filter(Boolean);
   const providers: ResultsProvider[] = [];
+  if (enabled.includes("balldontlie")) {
+    const apiKey = Deno.env.get("BALLDONTLIE_API_KEY");
+    if (!apiKey) throw new Error("RESULTS_PROVIDERS содержит balldontlie, но BALLDONTLIE_API_KEY не задан");
+    providers.push(new BallDontLieNhlResultsProvider({ apiKey }));
+    providers.push(new BallDontLieNbaResultsProvider({ apiKey, cache: createCache(db, "balldontlie") }));
+  }
   if (enabled.includes("nhl")) providers.push(new NhlResultsProvider());
   if (enabled.includes("opendota")) providers.push(new OpenDotaResultsProvider());
   if (enabled.includes("apifootball")) {
@@ -245,10 +259,69 @@ function createHouseSink(db: SupabaseClient): HouseSink {
     },
     getProgress: (key) => createCache(db, "pickup").get(key),
     setProgress: (key, value) => createCache(db, "pickup").set(key, value, 365 * 86_400),
-    async ingestSlate(source, payload) {
-      return check(await db.rpc("ingest_slate", { p_source: source, p_payload: payload }), "ingest_slate");
+    async scheduleMatches(leagueCode, from, to) {
+      type Team = { id: string; name: string; name_en: string | null; short_name: string; abbr: string; abbr_en: string | null };
+      const rows = check(
+        await db
+          .from("matches")
+          .select(
+            `id, starts_at, league:leagues!inner(code),
+             home:teams!matches_home_team_id_fkey(id, name, name_en, short_name, abbr, abbr_en),
+             away:teams!matches_away_team_id_fkey(id, name, name_en, short_name, abbr, abbr_en),
+             projections(source, status)`,
+          )
+          .eq("league.code", leagueCode)
+          .eq("status", "SCHEDULED")
+          .gte("starts_at", from)
+          .lte("starts_at", to),
+        "matches",
+      ) as unknown as { id: string; starts_at: string; home: Team; away: Team; projections: { source: string; status: string }[] }[];
+      // Сопоставление с API-Football и BALLDONTLIE — по английским названиям, если они известны.
+      const team = (t: Team) => ({ id: t.id, name: t.name_en ?? t.name, short_name: t.short_name, abbr: t.abbr_en ?? t.abbr });
+      return rows.map((m) => ({
+        id: m.id,
+        starts_at: m.starts_at,
+        home: team(m.home),
+        away: team(m.away),
+        other_lines: m.projections.filter((p) => p.source !== HOUSE_SOURCE && p.status === "OPEN").length,
+      }));
+    },
+    async ingestHouseLines(source, payload) {
+      return check(await db.rpc("ingest_house_lines", { p_source: source, p_payload: payload }), "ingest_house_lines");
     },
   };
+}
+
+/**
+ * Английские названия команд, у которых их нет (новые команды расписания на русском):
+ * один запрос /v4/participants на вид спорта, не чаще раза в 3 дня на вид спорта.
+ */
+async function fillTeamNamesEn(db: SupabaseClient, provider: OddsPapiProvider, caller: string) {
+  const result: Record<string, unknown> = {};
+  for (const sport of await scheduleSports(db)) {
+    const { data: missing } = await db
+      .from("teams")
+      .select("external_id")
+      .eq("source", provider.id)
+      .eq("sport_id", sport.id)
+      .is("name_en", null)
+      .limit(5000);
+    const ids = new Set(((missing ?? []) as { external_id: string }[]).map((t) => t.external_id));
+    if (ids.size === 0) continue;
+    if (caller === "cron" && (await ranRecently(db, provider.id, 72, `team_names:${sport.id}`))) continue;
+    result[sport.id] = await tracked(db, provider.id, `team_names:${sport.id}`, async () => {
+      const items = (await provider.participantNamesEn(sport.opSportId)).filter((p) => ids.has(p.external_id));
+      for (let i = 0; i < items.length; i += 1000) {
+        const { error } = await db.rpc("set_team_names_en", {
+          p_source: provider.id,
+          p_items: items.slice(i, i + 1000).map((p) => ({ ...p, abbr_en: null })),
+        });
+        if (error) throw new Error(`set_team_names_en: ${error.message}`);
+      }
+      return { missing: ids.size, named: items.length };
+    });
+  }
+  return result;
 }
 
 /** Виды спорта, для которых загружается полное расписание. */
@@ -308,7 +381,7 @@ async function propsCandidates(db: SupabaseClient): Promise<PropsCandidate[]> {
 }
 
 /**
- * Свои линии PICKUP (HOUSE_LINES=RPL): лиги без линий букмекеров на игроков.
+ * Свои линии PICKUP (HOUSE_LINES=EPL,RPL,…): лиги без линий букмекеров на игроков.
  * Данные — API-Football; по Cron не чаще раза в HOUSE_INTERVAL_HOURS часов.
  */
 async function runHouseLines(db: SupabaseClient, caller: string, report: Record<string, unknown>) {
@@ -440,12 +513,37 @@ Deno.serve(async (req) => {
       );
       return json({ caller, action, report });
     }
+    if (action === "nhl_lines") {
+      const apiKey = Deno.env.get("BALLDONTLIE_API_KEY");
+      if (!apiKey) return json({ caller, action, report: { skipped: "BALLDONTLIE_API_KEY не задан" } });
+      const bdl = new BallDontLieNhlResultsProvider({ apiKey, cache: createCache(db, "balldontlie") });
+      const report = await tracked(db, HOUSE_SOURCE, "nhl_lines", () =>
+        syncNhlHouseLines(bdl, createHouseSink(db), {
+          maxPerTeam: Number(Deno.env.get("NHL_LINES_PER_TEAM") ?? 20),
+          deadline: Date.now() + Number(Deno.env.get("HOUSE_TIME_BUDGET_SECONDS") ?? 100) * 1000,
+        }),
+      );
+      return json({ caller, action, report });
+    }
+    if (action === "nba_lines") {
+      const apiKey = Deno.env.get("BALLDONTLIE_API_KEY");
+      if (!apiKey) return json({ caller, action, report: { skipped: "BALLDONTLIE_API_KEY не задан" } });
+      const bdl = new BallDontLieNbaResultsProvider({ apiKey, cache: createCache(db, "balldontlie") });
+      const report = await tracked(db, HOUSE_SOURCE, "nba_lines", () =>
+        syncNbaHouseLines(bdl, createHouseSink(db), {
+          maxPerTeam: Number(Deno.env.get("NBA_LINES_PER_TEAM") ?? 15),
+          deadline: Date.now() + Number(Deno.env.get("HOUSE_TIME_BUDGET_SECONDS") ?? 100) * 1000,
+        }),
+      );
+      return json({ caller, action, report });
+    }
     if (action === "photos") {
       const report = await tracked(db, "photos", "photos", () =>
         syncPlayerPhotos(createPhotosSink(db), {
           limit: Number(Deno.env.get("PHOTOS_BATCH") ?? 10),
           // Без ключа Sportmonks футбольный источник пропускается (не имитируется).
           sportmonksKey: Deno.env.get("SPORTMONKS_API_KEY") ?? null,
+          apiFootballKey: Deno.env.get("APIFOOTBALL_API_KEY") ?? null,
           // Контакт для User-Agent запросов к Wikimedia (сайт или адрес владельца).
           contact: Deno.env.get("WIKIMEDIA_CONTACT") ?? null,
         }),
@@ -481,6 +579,9 @@ Deno.serve(async (req) => {
             syncSchedule(provider, createScheduleSink(db), sports),
           );
         }
+      }
+      if (action === "sync" || action === "schedule" || action === "team_names") {
+        report[`${provider.id}:team_names`] = await fillTeamNamesEn(db, provider, caller);
       }
       if (action === "sync" || action === "lines") {
         if (caller === "cron" && (await ranRecently(db, provider.id))) {

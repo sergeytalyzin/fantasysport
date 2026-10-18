@@ -37,6 +37,7 @@ const nextConfig: NextConfig = {
       // Фото спортсменов (см. supabase/functions/_shared/player-photos).
       { protocol: "https", hostname: "assets.nhle.com", pathname: "/mugs/**" },
       { protocol: "https", hostname: "cdn.nba.com", pathname: "/headshots/**" },
+      { protocol: "https", hostname: "media.api-sports.io", pathname: "/football/players/**" },
       { protocol: "https", hostname: "cdn.sportmonks.com", pathname: "/images/**" },
       { protocol: "https", hostname: "upload.wikimedia.org", pathname: "/wikipedia/commons/**" },
       { protocol: "https", hostname: "thumb.wikimedia.org", pathname: "/wikipedia/commons/**" },

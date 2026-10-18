@@ -22,7 +22,7 @@ interface AfEnvelope<T> {
 
 export interface AfFixture {
   fixture: { id: number; date: string; status?: { short?: string } };
-  league?: { id: number };
+  league?: { id: number; season?: number };
   teams: { home: { id?: number; name: string }; away: { id?: number; name: string } };
   goals?: { home: number | null; away: number | null };
 }
@@ -89,7 +89,7 @@ export class ApiFootballResultsProvider implements ResultsProvider {
       baseUrl?: string;
       fetch?: typeof fetch;
       cache?: ProviderCache;
-      /** Пауза между запросами; бесплатный тариф ограничивает частоту. */
+      /** Пауза между запросами: тариф Pro — до 300 запросов в минуту (бесплатный — 10). */
       minIntervalMs?: number;
     },
   ) {
@@ -98,15 +98,17 @@ export class ApiFootballResultsProvider implements ResultsProvider {
     this.baseUrl = (options.baseUrl ?? "https://v3.football.api-sports.io").replace(/\/$/, "");
     this.fetchImpl = options.fetch ?? fetch;
     this.cache = options.cache ?? noopCache;
-    this.minIntervalMs = options.minIntervalMs ?? 6500;
+    this.minIntervalMs = options.minIntervalMs ?? 250;
   }
 
   /** Матчи наших лиг за дату (UTC). Один запрос на дату, кэш 30 минут. */
   async fixturesOn(date: string): Promise<AfFixture[]> {
-    const cacheKey = `apifootball:fixtures:${date}`;
+    const ours = new Set(this.options.leagues.map((l) => l.leagueId));
+    // Кэш общий для всех экземпляров провайдера, а выдача отфильтрована по лигам —
+    // набор лиг входит в ключ, иначе первая лига заняла бы кэш для остальных.
+    const cacheKey = `apifootball:fixtures:${date}:${[...ours].sort().join(",")}`;
     let fixtures = await this.cache.get<AfFixture[]>(cacheKey);
     if (!fixtures) {
-      const ours = new Set(this.options.leagues.map((l) => l.leagueId));
       fixtures = (await this.get<AfFixture>("fixtures", { date })).filter((f) => ours.has(String(f.league?.id)));
       await this.cache.set(cacheKey, fixtures, 1800);
     }

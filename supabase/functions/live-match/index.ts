@@ -5,7 +5,7 @@
 // Публичная (только чтение), сторонние API вызываются только отсюда. Ответы
 // кэшируются в provider_cache: сколько бы зрителей ни смотрело матч, к
 // провайдеру уходит не больше одного запроса за TTL.
-//   НХЛ — play-by-play каждые 15 с; футбол — раз в 3 мин (лимит API-Football).
+//   НХЛ — play-by-play каждые 15 с; футбол — раз в минуту (API-Football, тариф Pro).
 
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { type AfFixtureLive, apiFootballSnapshot } from "../_shared/live/apifootball-live.ts";
@@ -28,7 +28,6 @@ const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json" } });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const FOOTBALL = new Set(["RPL", "EPL", "UCL"]);
 
 interface MatchRow {
   id: string;
@@ -114,7 +113,7 @@ async function liveSnapshot(db: SupabaseClient, m: MatchRow): Promise<{ snapshot
 
   const apiKey = Deno.env.get("APIFOOTBALL_API_KEY");
   const leagueId = m.league.external_ids?.apifootball;
-  if (FOOTBALL.has(m.league.code) && apiKey && leagueId) {
+  if (m.league.sport_id === "football" && apiKey && leagueId) {
     const af = new ApiFootballResultsProvider({
       apiKey,
       leagues: [{ code: m.league.code as AwaitingMatch["league_code"], leagueId }],
@@ -129,11 +128,13 @@ async function liveSnapshot(db: SupabaseClient, m: MatchRow): Promise<{ snapshot
     const fixture = await af.getFixtureLive<AfFixtureLive>(link.gameId);
     if (!fixture) return { snapshot: null, ttl: 600, reason: "game_not_found" };
     const snap = apiFootballSnapshot(fixture);
-    const ttl = snap.state === "FINAL" ? 3600 : snap.state === "PRE" ? 600 : 180;
+    // Тариф Pro: 7 500 запросов в день — live обновляется раз в минуту на матч, а не на зрителя.
+    const ttl = snap.state === "FINAL" ? 3600 : snap.state === "PRE" ? 600 : 60;
     return { snapshot: link.swapped ? swapSides(snap) : snap, ttl };
   }
 
-  return { snapshot: null, ttl: 3600, reason: "unsupported" };
+  // Источник может появиться позже (новый ключ, новая лига) — ответ кэшируется ненадолго.
+  return { snapshot: null, ttl: 300, reason: "unsupported" };
 }
 
 Deno.serve(async (req) => {
@@ -148,7 +149,8 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  const cacheKey = `live:snapshot:${matchId}`;
+  // v2: после подключения API-Football (тариф Pro) прежние ответы «unsupported» не используются.
+  const cacheKey = `live:v2:snapshot:${matchId}`;
   const cached = await cacheGet<{ snapshot: LiveSnapshot | null; reason?: string }>(db, cacheKey);
   if (cached) return json(cached);
 

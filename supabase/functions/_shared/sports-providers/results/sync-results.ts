@@ -23,6 +23,7 @@ export interface ExternalResultsReport {
 
 /** Максимальная разница времени начала между источниками. */
 const START_TOLERANCE_MS = 3 * 60 * 60 * 1000;
+const LOOSE_START_TOLERANCE_MS = 15 * 60 * 1000;
 
 export function pickGame(match: AwaitingMatch, games: ExternalGame[]): { game: ExternalGame; swapped: boolean } | null {
   const start = new Date(match.starts_at).getTime();
@@ -33,7 +34,19 @@ export function pickGame(match: AwaitingMatch, games: ExternalGame[]): { game: E
     if (teamMatches(match.home, g.away) && teamMatches(match.away, g.home)) return [{ game: g, swapped: true }];
     return [];
   });
-  return candidates.length === 1 ? candidates[0] : null;
+  if (candidates.length === 1) return candidates[0];
+  if (candidates.length > 1) return null;
+
+  // Источники пишут команды по-разному («Rennes» / «Stade Rennais FC», «Moskva» / «Moscow»).
+  // Запасное правило: то же время начала (±15 мин) и совпадение хотя бы одной команды —
+  // команда не может играть два матча одновременно. Кандидат должен быть единственным.
+  const loose = games.flatMap((g) => {
+    if (Math.abs(new Date(g.startsAt).getTime() - start) > LOOSE_START_TOLERANCE_MS) return [];
+    if (teamMatches(match.home, g.home) || teamMatches(match.away, g.away)) return [{ game: g, swapped: false }];
+    if (teamMatches(match.home, g.away) || teamMatches(match.away, g.home)) return [{ game: g, swapped: true }];
+    return [];
+  });
+  return loose.length === 1 ? loose[0] : null;
 }
 
 export async function syncExternalResults(

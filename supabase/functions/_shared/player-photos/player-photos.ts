@@ -7,7 +7,8 @@
 //   НБА  cdn.nba.com/headshots/nba/latest/1040x760/{personId}.png. Для неизвестного ID CDN отдаёт
 //        силуэт с кодом 200 — ID берётся только подтверждённый (Wikidata P3647 «NBA.com player ID»),
 //        а силуэт отсекается сравнением хэша. Справочники stats.nba.com / cdn.nba.com/static закрыты (403).
-//   Футбол Sportmonks /v3/football/players/search/{name} (image_path) — только при SPORTMONKS_API_KEY.
+//   Футбол API-Football /players/profiles?player={id} — фото по ID игрока (media.api-sports.io);
+//        Sportmonks /v3/football/players/search/{name} (image_path) — только при SPORTMONKS_API_KEY.
 //   Остальное Wikidata (P31 человек, P641 вид спорта, P18 фото, P54 команды, P3522 NHL ID) +
 //        Wikimedia Commons (лицензия, автор). Берутся только CC0 / PD / CC BY / CC BY-SA.
 //   КХЛ, киберспорт — открытых официальных API с фото нет; используются Wikidata/Commons.
@@ -27,10 +28,12 @@ export interface PhotoCandidate {
   team_names: string[];
   /** Те же команды с id — чтобы привязать спортсмена к его команде. */
   teams?: { id: string; name: string }[] | null;
+  /** ID спортсмена у источника линий, например «apifootball:player:129718». */
+  external_id?: string | null;
   photo_url: string | null;
 }
 
-export type PhotoSource = "nhl" | "nba" | "sportmonks" | "wikimedia";
+export type PhotoSource = "nhl" | "nba" | "apifootball" | "sportmonks" | "wikimedia";
 
 export interface PhotoInfo {
   photo_url: string;
@@ -275,14 +278,54 @@ const WIKIDATA_SPORT: Partial<Record<SportId, string[]>> = {
 };
 
 /** Люди нужного вида спорта с совпадающим именем (подпись или псевдоним, en/ru). */
-export function matchingAthletes(entities: WikidataEntity[], sport: SportId, fullName: string): WikidataEntity[] {
+export function matchingAthletes(entities: WikidataEntity[], sport: SportId, names: string | string[]): WikidataEntity[] {
   const sports = WIKIDATA_SPORT[sport] ?? [];
+  const wanted = Array.isArray(names) ? names : [names];
   return entities.filter(
     (e) =>
       claimIds(e, "P31").includes("Q5") &&
       claimIds(e, "P641").some((s) => sports.includes(s)) &&
-      entityNames(e).some((n) => sameName(n, fullName)),
+      entityNames(e).some((n) => wanted.some((w) => sameName(n, w))),
   );
+}
+
+/**
+ * Варианты имени футболиста из профиля API-Football. В ленте имя сокращено («J. Bellingham»),
+ * а в профиле все имена полностью («Jude Victor William» + «Bellingham»,
+ * «Vinícius José» + «Paixão de Oliveira Júnior»). Сначала — короткие привычные формы.
+ */
+export function apiFootballNameVariants(name: string, firstname: string | null, lastname: string | null): string[] {
+  const first = (firstname ?? "").trim().split(/\s+/).filter(Boolean);
+  const last = (lastname ?? "").trim().split(/\s+/).filter(Boolean);
+  const variants = [
+    first[0] && last.length ? `${first[0]} ${last.join(" ")}` : null,
+    first[0] && last.length > 1 ? `${first[0]} ${last[last.length - 1]}` : null,
+    first.length && last.length ? `${first.join(" ")} ${last.join(" ")}` : null,
+    name,
+  ];
+  return [...new Set(variants.filter((v): v is string => Boolean(v)))];
+}
+
+/**
+ * Профиль футболиста в API-Football (один запрос на спортсмена): фото по ID игрока
+ * (media.api-sports.io, у несуществующего — 404, общей заглушки нет) и полные имена для Wikidata.
+ */
+async function apiFootballProfile(
+  fetchImpl: Fetch,
+  apiKey: string,
+  c: PhotoCandidate,
+): Promise<{ id: string; photo: string | null; names: string[] } | null> {
+  const id = /^apifootball:player:(\d+)$/.exec(c.external_id ?? "")?.[1];
+  if (!id) return null;
+  const res = await fetchImpl(`https://v3.football.api-sports.io/players/profiles?player=${id}`, {
+    headers: { "x-apisports-key": apiKey, Accept: "application/json" },
+  });
+  if (!res.ok) throw new ProviderHttpError("apifootball", res.status, "/players/profiles", await res.text());
+  const data = (await res.json()) as {
+    response?: { player: { name: string; firstname: string | null; lastname: string | null; photo?: string | null } }[];
+  };
+  const p = data.response?.[0]?.player;
+  return p ? { id, photo: p.photo ?? null, names: apiFootballNameVariants(p.name, p.firstname, p.lastname) } : null;
 }
 
 // Свободные лицензии Commons, допускающие использование на сайте с указанием автора.
@@ -344,12 +387,19 @@ class Wikidata {
     return data.entities;
   }
 
-  /** Единственный спортсмен с этим именем и видом спорта; при неоднозначности — по команде (P54). */
-  async athlete(c: PhotoCandidate): Promise<WikidataEntity | null> {
-    const search = (await this.api({ action: "wbsearchentities", type: "item", limit: "10", language: "en", search: c.full_name })) as {
-      search: { id: string }[];
-    };
-    const found = matchingAthletes(Object.values(await this.entities(search.search.map((s) => s.id))), c.sport_id, c.full_name);
+  /**
+   * Единственный спортсмен с этим именем и видом спорта; при неоднозначности — по команде (P54).
+   * Варианты имени перебираются по очереди, пока поиск не найдёт подходящих людей.
+   */
+  async athlete(c: PhotoCandidate, names: string[] = [c.full_name]): Promise<WikidataEntity | null> {
+    let found: WikidataEntity[] = [];
+    for (const name of names) {
+      const search = (await this.api({ action: "wbsearchentities", type: "item", limit: "10", language: "en", search: name })) as {
+        search: { id: string }[];
+      };
+      found = matchingAthletes(Object.values(await this.entities(search.search.map((s) => s.id))), c.sport_id, names);
+      if (found.length > 0) break;
+    }
     if (found.length <= 1) return found[0] ?? null;
     if (c.team_names.length === 0) return null;
     const teamKeys = new Set(c.team_names.map(normalizeName));
@@ -374,10 +424,19 @@ export async function syncPlayerPhotos(
   {
     limit = 10,
     sportmonksKey = null,
+    apiFootballKey = null,
     contact = null,
     wikimediaDelay = 1000,
     fetchImpl = fetch,
-  }: { limit?: number; sportmonksKey?: string | null; contact?: string | null; wikimediaDelay?: number; fetchImpl?: Fetch } = {},
+  }: {
+    limit?: number;
+    sportmonksKey?: string | null;
+    /** Для полных имён футболистов из профиля API-Football. */
+    apiFootballKey?: string | null;
+    contact?: string | null;
+    wikimediaDelay?: number;
+    fetchImpl?: Fetch;
+  } = {},
 ) {
   HEADERS["User-Agent"] = `PICKUP-player-photos/1.0 (${contact ? contact : "athlete photo lookup"})`;
   wikimediaDelayMs = wikimediaDelay;
@@ -410,8 +469,23 @@ export async function syncPlayerPhotos(
       const fromSportmonks = await verified(await sportmonksPhoto(fetchImpl, sportmonksKey, c));
       if (fromSportmonks) return fromSportmonks;
     }
+    // Футбол: фото из API-Football по ID игрока — тот же человек, без поиска по имени.
+    const profile = c.sport_id === "football" && apiFootballKey ? await apiFootballProfile(fetchImpl, apiFootballKey, c) : null;
+    if (profile?.photo) {
+      const fromApiFootball = await verified({
+        photo_url: profile.photo,
+        photo_source: "apifootball",
+        external_player_id: profile.id,
+        photo_license: "© API-Football (API-Sports)",
+        photo_author: null,
+        photo_license_url: null,
+        photo_page_url: null,
+      });
+      if (fromApiFootball) return fromApiFootball;
+    }
     if (!WIKIDATA_SPORT[c.sport_id]) return null;
-    const athlete = await wikidata.athlete(c);
+    const names = profile?.names ?? [c.full_name];
+    const athlete = await wikidata.athlete(c, names);
     if (!athlete) return null;
     // 2. Официальный ID лиги из Wikidata.
     const nhlId = firstString(athlete, "P3522");

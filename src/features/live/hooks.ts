@@ -29,8 +29,8 @@ export function useLiveMatch(matchId: string, enabled = true) {
     refetchInterval: (query) => {
       const snapshot = query.state.data?.snapshot;
       if (!snapshot || snapshot.state === "FINAL") return false;
-      // Футбол обновляется на сервере раз в 3 минуты — чаще спрашивать незачем.
-      return snapshot.provider === "apifootball" ? 60_000 : 15_000;
+      // Футбол обновляется на сервере раз в минуту (API-Football Pro), НХЛ — раз в 15 с.
+      return snapshot.provider === "apifootball" ? 30_000 : 15_000;
     },
     refetchIntervalInBackground: false,
   });

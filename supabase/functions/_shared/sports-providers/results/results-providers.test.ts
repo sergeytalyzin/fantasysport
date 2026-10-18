@@ -12,6 +12,9 @@ const NHL_FILES: Record<string, string> = {
   "score/2026-10-16": "nhl-score-2026-10-16.json",
   "gamecenter/2026020119/boxscore": "nhl-boxscore-2026020119.json",
   "gamecenter/2026020119/play-by-play": "nhl-pbp-2026020119.json",
+  // Текущие составы (урезанные до id и имён).
+  "roster/COL/current": "nhl-roster-COL.json",
+  "roster/PIT/current": "nhl-roster-PIT.json",
 };
 
 const nhlFetch = (async (input: RequestInfo | URL) => {
@@ -68,6 +71,15 @@ describe("NhlResultsProvider (реальные ответы API)", () => {
     expect(byName["Mackenzie Blackwood"].stats.saves).toBe(30);
     // Запасной вратарь с временем 00:00 не играл.
     expect(byName["Scott Wedgewood"].didPlay).toBe(false);
+  });
+
+  it("игроки состава, которых нет в протоколе завершённой игры, не играли", async () => {
+    const result = (await nhl.getGameResult("2026020119")) as ExternalGameResult;
+    const byName = Object.fromEntries(result.players.map((p) => [p.fullName, p]));
+    expect(byName["Logan O'Connor"]).toMatchObject({ didPlay: false });
+    expect(byName["Egor Chinakhov"]).toMatchObject({ didPlay: false });
+    // Сыгравшие не дублируются.
+    expect(result.players.filter((p) => p.fullName === "Nathan MacKinnon")).toHaveLength(1);
   });
 });
 
@@ -127,6 +139,25 @@ describe("syncExternalResults", () => {
   });
 });
 
+describe("pickGame: разные написания команд у источников", () => {
+  const game = (id: string, startsAt: string, home: string, away: string) => ({ gameId: id, startsAt, home: { names: [home] }, away: { names: [away] } });
+  // Реальные пары OddsPapi / API-Football (18.10.2026).
+  it("то же время и одна совпавшая команда — тот же матч", () => {
+    const rennes = match({ league_code: "OP_34", starts_at: "2026-10-18T15:15:00Z", home: { name: "Paris FC" }, away: { name: "Stade Rennais FC" } });
+    expect(pickGame(rennes, [game("1", "2026-10-18T15:15:00+00:00", "Paris FC", "Rennes")])).toMatchObject({ game: { gameId: "1" }, swapped: false });
+    const rodina = match({ league_code: "RPL", starts_at: "2026-10-19T16:30:00Z", home: { name: "Rodina Moscow" }, away: { name: "FC Orenburg" } });
+    expect(pickGame(rodina, [game("2", "2026-10-19T16:30:00+00:00", "FC Orenburg", "Rodina Moskva")])).toMatchObject({ game: { gameId: "2" }, swapped: true });
+  });
+
+  it("запасное правило не срабатывает при разнице во времени и при нескольких кандидатах", () => {
+    const m = match({ league_code: "OP_34", starts_at: "2026-10-18T15:15:00Z", home: { name: "Paris FC" }, away: { name: "Stade Rennais FC" } });
+    expect(pickGame(m, [game("1", "2026-10-18T17:15:00+00:00", "Paris FC", "Rennes")])).toBeNull();
+    expect(
+      pickGame(m, [game("1", "2026-10-18T15:15:00+00:00", "Paris FC", "Rennes"), game("2", "2026-10-18T15:15:00+00:00", "Paris FC", "Lille")]),
+    ).toBeNull();
+  });
+});
+
 describe("ApiFootballResultsProvider", () => {
   const calls: string[] = [];
   const responses: Record<string, unknown> = {
@@ -176,6 +207,20 @@ describe("ApiFootballResultsProvider", () => {
       { fullName: "Bench Player", didPlay: false, stats: {} },
     ]);
     expect(calls[0]).toContain(" k");
+  });
+
+  it("общий кэш матчей дня не смешивает лиги разных экземпляров провайдера", async () => {
+    const store = new Map<string, unknown>();
+    const cache = {
+      get: async <T,>(key: string) => (store.get(key) as T) ?? null,
+      set: async (key: string, value: unknown) => void store.set(key, value),
+    };
+    const fetchImpl = (async (input: RequestInfo | URL) =>
+      new Response(JSON.stringify(responses[String(input).replace("https://v3.football.api-sports.io/", "")]), { status: 200 })) as typeof fetch;
+    const epl = new ApiFootballResultsProvider({ apiKey: "k", leagues: [{ code: "EPL", leagueId: "39" }], minIntervalMs: 0, cache, fetch: fetchImpl });
+    const laliga = new ApiFootballResultsProvider({ apiKey: "k", leagues: [{ code: "OP_8", leagueId: "140" }], minIntervalMs: 0, cache, fetch: fetchImpl });
+    expect((await epl.fixturesOn("2026-10-18")).map((f) => f.fixture.id)).toEqual([555]);
+    expect((await laliga.fixturesOn("2026-10-18")).map((f) => f.fixture.id)).toEqual([777]);
   });
 
   it("ошибки в поле errors при HTTP 200 превращаются в исключение", async () => {

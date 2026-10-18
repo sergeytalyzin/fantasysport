@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildHouseLines, expectedPerGame, FOOTBALL_RULES, houseLine, type PlayerForm } from "./engine.ts";
+import { pickPrior } from "./sync-house.ts";
 
 const game = (minutes: number, shots: number, sot: number, passes: number, goals = 0) => ({
   minutes,
@@ -67,5 +68,16 @@ describe("линии PICKUP", () => {
   it("рынок не выставляется, если ожидание ниже порога", () => {
     const lines = buildHouseLines([form("d", "A", [game(90, 0, 0, 60), game(90, 1, 0, 55)])], FOOTBALL_RULES);
     expect(lines.map((l) => l.marketCode)).toEqual(["passes"]);
+  });
+});
+
+describe("pickPrior", () => {
+  const p = (appearances: number) => ({ appearances, minutes: appearances * 90, totals: { shots: appearances } });
+  it("текущий сезон от 3 матчей, иначе прошлый от 8, иначе нет", () => {
+    expect(pickPrior(p(3), p(30))).toEqual(p(3));
+    expect(pickPrior(p(2), p(30))).toEqual(p(30));
+    expect(pickPrior(undefined, p(8))).toEqual(p(8));
+    expect(pickPrior(p(2), p(7))).toBeNull();
+    expect(pickPrior(null, null)).toBeNull();
   });
 });

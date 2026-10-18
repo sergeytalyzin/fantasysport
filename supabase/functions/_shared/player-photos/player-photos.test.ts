@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   allowedLicense,
+  apiFootballNameVariants,
   imageAvailable,
   matchingAthletes,
   type PhotoCandidate,
@@ -44,6 +45,22 @@ describe("matchingAthletes", () => {
     expect(matchingAthletes([LEBRON, LEBRON_FICTIONAL], "basketball", "LeBron James")).toEqual([LEBRON]);
     expect(matchingAthletes([LEBRON], "hockey", "LeBron James")).toEqual([]);
     expect(matchingAthletes([MOZYAKIN], "hockey", "Сергей Мозякин")).toEqual([MOZYAKIN]);
+  });
+});
+
+describe("apiFootballNameVariants", () => {
+  // Реальные профили API-Football (/players/profiles).
+  it("строит привычные формы полного имени", () => {
+    expect(apiFootballNameVariants("J. Bellingham", "Jude Victor William", "Bellingham")).toEqual([
+      "Jude Bellingham",
+      "Jude Victor William Bellingham",
+      "J. Bellingham",
+    ]);
+    expect(apiFootballNameVariants("Vinícius Júnior", "Vinícius José", "Paixão de Oliveira Júnior")).toEqual([
+      "Vinícius Paixão de Oliveira Júnior",
+      "Vinícius Júnior",
+      "Vinícius José Paixão de Oliveira Júnior",
+    ]);
   });
 });
 
@@ -178,6 +195,64 @@ describe("syncPlayerPhotos", () => {
     const { s, saved } = sink([candidate({ player_id: "gb", sport_id: "football", full_name: "Gianluigi Buffon" })]);
     await syncPlayerPhotos(s, { fetchImpl: fetchImpl as unknown as typeof fetch, wikimediaDelay: 0 });
     expect(saved).toEqual([{ player_id: "gb", found: false, keep: false }]);
+  });
+
+  it("футболист: фото из API-Football по ID игрока, без поиска по имени", async () => {
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const u = String(input);
+      if (u.includes("players/profiles?player=129718")) {
+        return json({ response: [{ player: { name: "J. Bellingham", firstname: "Jude Victor William", lastname: "Bellingham", photo: "https://media.api-sports.io/football/players/129718.png" } }] });
+      }
+      if (u === "https://media.api-sports.io/football/players/129718.png") return png([3]);
+      throw new Error(`unexpected ${u}`);
+    });
+    const { s, saved } = sink([
+      candidate({ player_id: "jb", sport_id: "football", full_name: "J. Bellingham", external_id: "apifootball:player:129718" }),
+    ]);
+    await syncPlayerPhotos(s, { fetchImpl: fetchImpl as unknown as typeof fetch, wikimediaDelay: 0, apiFootballKey: "k" });
+    expect(saved).toEqual([
+      expect.objectContaining({
+        player_id: "jb",
+        found: true,
+        photo_source: "apifootball",
+        external_player_id: "129718",
+        photo_url: "https://media.api-sports.io/football/players/129718.png",
+      }),
+    ]);
+  });
+
+  it("футболист с сокращённым именем находится по полному имени из профиля API-Football", async () => {
+    const BELLINGHAM: WikidataEntity = {
+      labels: { en: { value: "Jude Bellingham" } },
+      claims: { P31: [id("Q5")], P641: [id("Q2736")], P18: [claim("Jude Bellingham.jpg")] },
+    };
+    const searched: string[] = [];
+    const fetchImpl = vi.fn(async (input: string | URL | Request) => {
+      const u = String(input);
+      if (u.includes("players/profiles?player=129718")) {
+        return json({ response: [{ player: { name: "J. Bellingham", firstname: "Jude Victor William", lastname: "Bellingham" } }] });
+      }
+      if (u.includes("wbsearchentities")) {
+        searched.push(new URL(u).searchParams.get("search")!);
+        return json({ search: new URL(u).searchParams.get("search") === "Jude Bellingham" ? [{ id: "Q1" }] : [] });
+      }
+      if (u.includes("wbgetentities")) return json({ entities: u.includes("Q1") ? { Q1: BELLINGHAM } : {} });
+      if (u.includes("commons.wikimedia.org/w/api.php")) {
+        return json({ query: { pages: { "1": { imageinfo: [{
+          url: "https://upload.wikimedia.org/wikipedia/commons/a/ab/JB.jpg",
+          descriptionurl: "https://commons.wikimedia.org/wiki/File:JB.jpg",
+          extmetadata: { License: { value: "cc-by-sa-4.0" }, LicenseShortName: { value: "CC BY-SA 4.0" } },
+        }] } } } });
+      }
+      if (u.includes("upload.wikimedia.org")) return png([4]);
+      throw new Error(`unexpected ${u}`);
+    });
+    const { s, saved } = sink([
+      candidate({ player_id: "jb", sport_id: "football", full_name: "J. Bellingham", external_id: "apifootball:player:129718" }),
+    ]);
+    await syncPlayerPhotos(s, { fetchImpl: fetchImpl as unknown as typeof fetch, wikimediaDelay: 0, apiFootballKey: "k" });
+    expect(searched[0]).toBe("Jude Bellingham");
+    expect(saved).toEqual([expect.objectContaining({ player_id: "jb", found: true, photo_source: "wikimedia", photo_license: "CC BY-SA 4.0" })]);
   });
 
   it("если источник не подтвердил фото, доступное прежнее остаётся, недоступное очищается", async () => {
